@@ -1,6 +1,20 @@
 # MoneyManager - Personal Finance Management System
 
-A comprehensive Django-based personal finance management web application with family group sharing capabilities, built following Django 5.x best practices.
+A comprehensive Django-based personal finance management web application with **advanced multi-bank statement parsing**, family group sharing capabilities, and intelligent transaction processing. Built following Django 5.x best practices.
+
+## 🚀 Latest Features - Multi-Bank Statement Parsing
+
+### 🏦 Supported Banks
+- ✅ **Federal Bank**: Complete parsing with DD-MMM-YYYY date conversion and balance-based classification
+- ✅ **SBI (State Bank of India)**: Full support with DD-MM-YY format and debit/credit column detection  
+- ✅ **HDFC Bank**: Detection implemented, parsing framework ready
+- ✅ **Generic Banks**: Fallback parsing for unknown statement formats
+
+### 💡 Key Improvements
+- **Fixed Date Parsing**: Resolved DD/MM vs MM/DD conflicts (02/06/2023 = June 2nd, not February 6th)
+- **Accurate Transaction Types**: Smart expense/income classification using balance changes
+- **Enhanced PDF Processing**: Robust text extraction with intelligent pattern matching
+- **Comprehensive Testing**: Full test coverage for all parsing scenarios
 
 ## Features
 
