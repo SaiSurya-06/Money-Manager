@@ -1,0 +1,54 @@
+The Federal Bank Ltd. Corporate Office: Federal Towers, Market Rd, Periyar Nagar, Aluva, Kerala, 683101,
+Ph:0484 2630996 Website:www.federalbank.co.inPage 1 of 2
+Name : PRAKHYA VENKATA SAI SURYA Branch Name : NEO BANKING
+Communication Address : 8-7-134/35/402 GOWRI NAGAR OLD 
+BOWEN PAL, LY NEAR MASJID 
+HYDERABAD HYDERABAD, , 
+ANDHRAPRADESH, INDIA-500011Branch sol ID : 5555
+Address Last Updated On : 22/05/2023 Account Number : 55550129689632
+Regd. Mobile Number : 917989735781 Customer ID : 142746013
+Email ID : surya.prakhya06@gmail.com Account Open Date : 22/05/2023
+Type of Account : Savings Account Account Status : ACTIVE
+Scheme : PRIME Mode of Operation : SINGLE
+IFSC : FDRL0005555 Joint Holders : NIL
+MICR Code : 682049068 Nomination : NOT REGISTERED
+SWIFT Code : FDRLINBBIBD Currency : INR
+Effective Available Balance : 122836.91 Date of Issue : 27/09/2025
+Statement of Account for the period 2023-05-22 to 2023-06-27
+Date Value Date ParticularsTran
+TypeTran IDCheque
+DetailsWithdrawals Deposits BalanceDR
+/CR
+Opening Balance 0Cr
+22-MAY-2023 22-MAY-2023 IFN
+/FBLEPIFIZDUbNpmRBq2AUgignArw 
+55550051070111TFR S48825391 100.00 100.00 Cr
+28-MAY-2023 28-MAY-2023 IFN/B2CSun20230528032412SVcNM 
+EPIFI TECHNOLOGIES PTFR S22587665 1.00 101.00 Cr
+31-MAY-2023 31-MAY-2023 UPI IN/315156481642/surya.
+prakhya06@okhdfcba/0000TFR S63979562 150.00 251.00 Cr
+31-MAY-2023 31-MAY-2023 UPIOUT/315117391704
+/paytmqr2810050501011q71v/5411TFR S68435429 120.00 131.00 Cr
+02-JUN-2023 02-JUN-2023 UPI IN/315312676214/surya.
+prakhya06@okhdfcba/0000TFR S95759682 100.00 231.00 Cr
+03-JUN-2023 03-JUN-2023 UPIOUT/315435946691
+/paytmqr2810050501011jt57/5812TFR S8542439 38.00 193.00 Cr
+06-JUN-2023 06-JUN-2023 UPIOUT/315722999791
+/9603507066@ybl/UPI/0000TFR S55720138 30.00 163.00 Cr
+16-JUN-2023 16-JUN-2023 UPIOUT/316785348067
+/paytmqr281005050101y8x6g/5462TFR S93285431 90.00 73.00 Cr
+17-JUN-2023 17-JUN-2023 UPIOUT/316816421144
+/gayathrik1503@okicici/UP/0000TFR S9051742 65.00 8.00 Cr
+27-JUN-2023 27-JUN-2023 FT IMPS/IFI/317810696894/KARZA 
+TECH AC VERIFY/bankTFR S34366794 1.00 9.00 Cr
+GRAND TOTAL 343.0 352.0
+Abbreviations Used:
+CASH : Cash Transaction TFR : Transfer Transaction
+FT : Fund Transfer CLG : Clearing Transaction
+SBINT : Interest on SB Account MB : Mobile Banking
+The Federal Bank Ltd. Corporate Office: Federal Towers, Market Rd, Periyar Nagar, Aluva, Kerala, 683101,
+Ph:0484 2630996 Website:www.federalbank.co.inPage 2 of 2DISCLAIMER: This computer generated statement contains the particulars of the transaction(s) in the account that have been updated till the time of day end operations of the CBS system of the Bank on 
+theprevious working day and the same will not reflect the transaction(s) that have occurred in the account, if any, subsequent thereto. The Federal Bank Ltd. shall not be liable/responsible for want of 
+fullparticulars of the transaction(s) at the time of the generation of this statement.
+This is a computer generated statement which need not normally be signed. Contents of this statement will be considered correct if no error is reported within 21 days of the statement date.
+****END OF STATEMENT****

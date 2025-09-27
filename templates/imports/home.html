@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}Import - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-upload me-2"></i>Import Data</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="bi bi-file-earmark-spreadsheet display-4 text-primary mb-3"></i>
+                    <h5 class="card-title">Import Transactions</h5>
+                    <p class="card-text">Upload CSV, Excel, or other file formats to import your transaction data.</p>
+                    <a href="{% url 'imports:transactions' %}" class="btn btn-primary">Import Transactions</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="bi bi-cloud-upload display-4 text-success mb-3"></i>
+                    <h5 class="card-title">CSV Upload</h5>
+                    <p class="card-text">Quick CSV file upload for bulk transaction imports.</p>
+                    <a href="{% url 'imports:csv_upload' %}" class="btn btn-success">Upload CSV</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="bi bi-bank display-4 text-info mb-3"></i>
+                    <h5 class="card-title">Bank Sync</h5>
+                    <p class="card-text">Connect and synchronize with your bank accounts automatically.</p>
+                    <a href="{% url 'imports:bank_sync' %}" class="btn btn-info">Setup Bank Sync</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-clock-history me-2"></i>Recent Imports</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">No recent imports found.</p>
+                    <a href="{% url 'imports:history' %}" class="btn btn-outline-primary">View Import History</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

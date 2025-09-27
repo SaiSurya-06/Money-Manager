@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}Import Transactions - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-download me-2"></i>Import Transactions</h2>
+                <a href="{% url 'transactions:list' %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Back to Transactions
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-bank me-2"></i>Bank Statement Import</h5>
+                </div>
+                <div class="card-body">
+                    <p>Import transactions directly from your bank statements</p>
+                    <div class="d-grid">
+                        <a href="{% url 'transactions:bulk_upload' %}" class="btn btn-primary">
+                            <i class="bi bi-cloud-upload me-1"></i>Upload Bank Statement
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-credit-card me-2"></i>Credit Card Import</h5>
+                </div>
+                <div class="card-body">
+                    <p>Import transactions from credit card statements</p>
+                    <div class="d-grid">
+                        <a href="{% url 'transactions:bulk_upload' %}" class="btn btn-primary">
+                            <i class="bi bi-cloud-upload me-1"></i>Upload Credit Card Statement
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-info-circle me-2"></i>Import Guidelines</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Supported Banks:</h6>
+                            <ul>
+                                <li>Chase Bank</li>
+                                <li>Bank of America</li>
+                                <li>Wells Fargo</li>
+                                <li>Citibank</li>
+                                <li>Capital One</li>
+                                <li>Custom CSV format</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>File Requirements:</h6>
+                            <ul>
+                                <li>File size: Max 10MB</li>
+                                <li>Formats: CSV, Excel, PDF</li>
+                                <li>Date range: Last 2 years</li>
+                                <li>Encoding: UTF-8 preferred</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

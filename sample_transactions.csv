@@ -1,0 +1,11 @@
+Date,Description,Amount,Type,Category,Notes
+2025-01-01,Monthly Salary,3000.00,income,Salary,January salary payment
+2025-01-02,Grocery Shopping,125.50,expense,Groceries,Weekly grocery shopping at supermarket
+2025-01-03,Gas Station,45.00,expense,Transportation,Fuel for car
+2025-01-04,Coffee Shop,8.50,expense,Dining,Morning coffee
+2025-01-05,Freelance Payment,500.00,income,Freelance,Website development project
+2025-01-06,Electric Bill,89.25,expense,Utilities,Monthly electricity bill
+2025-01-07,Restaurant Dinner,67.80,expense,Dining,Dinner with friends
+2025-01-08,Online Purchase,34.99,expense,Shopping,Amazon purchase - books
+2025-01-09,ATM Withdrawal,100.00,expense,Transfer,Cash withdrawal
+2025-01-10,Investment Dividend,25.75,income,Investment Returns,Quarterly dividend payment

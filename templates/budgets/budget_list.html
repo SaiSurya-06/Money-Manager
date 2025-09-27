@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Budgets - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-pie-chart me-2"></i>Budgets</h1>
+        <div class="btn-group" role="group">
+            <a href="{% url 'budgets:create' %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle me-1"></i>Add Budget
+            </a>
+            <a href="{% url 'budgets:goals' %}" class="btn btn-outline-primary">
+                <i class="bi bi-bullseye me-1"></i>Goals
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Total Budgeted</h6>
+                            <h4>${{ total_budgeted|floatformat:2 }}</h4>
+                        </div>
+                        <i class="bi bi-wallet display-6"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Total Spent</h6>
+                            <h4>${{ total_spent|floatformat:2 }}</h4>
+                        </div>
+                        <i class="bi bi-credit-card display-6"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Active Budgets</h6>
+                            <h4>{{ active_count }}</h4>
+                        </div>
+                        <i class="bi bi-check-circle display-6"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Budgets List -->
+    {% if budgets %}
+        <div class="row">
+            {% for budget in budgets %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">{{ budget.name }}</h6>
+                        <span class="badge bg-primary">{{ budget.get_period_display }}</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small">{{ budget.start_date|date:"M d" }} - {{ budget.end_date|date:"M d, Y" }}</p>
+                        
+                        <!-- Progress Bar -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <small>Progress</small>
+                                <small>{{ budget.percentage_spent|floatformat:1 }}%</small>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar {% if budget.is_over_budget %}bg-danger{% elif budget.percentage_spent > 80 %}bg-warning{% else %}bg-success{% endif %}" 
+                                     role="progressbar" 
+                                     style="width: {{ budget.percentage_spent|floatformat:1 }}%" 
+                                     aria-valuenow="{{ budget.percentage_spent|floatformat:1 }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Budget Details -->
+                        <div class="row text-center mb-3">
+                            <div class="col">
+                                <small class="text-muted">Budgeted</small>
+                                <div class="fw-bold">${{ budget.total_budget|floatformat:2 }}</div>
+                            </div>
+                            <div class="col">
+                                <small class="text-muted">Spent</small>
+                                <div class="fw-bold text-danger">${{ budget.spent_amount|floatformat:2 }}</div>
+                            </div>
+                            <div class="col">
+                                <small class="text-muted">Remaining</small>
+                                <div class="fw-bold {% if budget.remaining_amount >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    ${{ budget.remaining_amount|floatformat:2 }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Status Alert -->
+                        {% if budget.is_over_budget %}
+                            <div class="alert alert-danger alert-sm">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Over budget!
+                            </div>
+                        {% elif budget.percentage_spent > budget.alert_percentage %}
+                            <div class="alert alert-warning alert-sm">
+                                <i class="bi bi-exclamation-circle me-1"></i>Alert threshold reached
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="card-footer">
+                        <div class="btn-group w-100" role="group">
+                            <a href="{% url 'budgets:detail' budget.pk %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="{% url 'budgets:update' budget.pk %}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-pie-chart display-1 text-muted"></i>
+                <h4 class="mt-3 text-muted">No budgets found</h4>
+                <p class="text-muted">Start managing your spending by creating your first budget!</p>
+                <a href="{% url 'budgets:create' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle me-1"></i>Create Budget
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

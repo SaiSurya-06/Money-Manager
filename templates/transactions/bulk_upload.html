@@ -1,0 +1,280 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Bulk Upload Transactions - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-cloud-upload me-2"></i>Bulk Upload Transactions</h2>
+                <a href="{% url 'transactions:list' %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Back to Transactions
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-file-earmark-arrow-up me-2"></i>Upload File</h5>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    {% if pdf_message %}
+                    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                        <strong>PDF Notice:</strong> {{ pdf_message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endif %}
+
+                    {% crispy form %}
+
+                    {% if sample_formats.csv %}
+                    <div class="alert alert-light mt-3">
+                        <h6><i class="bi bi-info-circle me-2"></i>Expected CSV Format:</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                {% for row in sample_formats.csv %}
+                                <tr>
+                                    {% for cell in row %}
+                                    <td><small>{{ cell }}</small></td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="bi bi-info-circle me-2"></i>Upload Instructions</h6>
+                </div>
+                <div class="card-body">
+                    <h6>Supported File Types:</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-file-earmark-excel text-success me-2"></i>Excel (.xlsx, .xls)</li>
+                        <li><i class="bi bi-filetype-csv text-primary me-2"></i>CSV (.csv)</li>
+                        <li><i class="bi bi-filetype-pdf text-danger me-2"></i>PDF (.pdf) - Bank statements</li>
+                    </ul>
+                    <small class="text-muted">Maximum file size: 10MB</small>
+                    
+                    <hr>
+                    
+                    <h6>Required Columns (CSV/Excel):</h6>
+                    <ul class="small">
+                        <li><strong>Date:</strong> Transaction date (YYYY-MM-DD)</li>
+                        <li><strong>Description:</strong> Transaction description</li>
+                        <li><strong>Amount:</strong> Transaction amount (positive numbers only)</li>
+                        <li><strong>Type:</strong> 'income' or 'expense' (lowercase)</li>
+                    </ul>
+
+                    <hr>
+
+                    <h6>PDF Bank Statements:</h6>
+                    <ul class="small">
+                        <li><strong>Format:</strong> Text-based PDF (not scanned images)</li>
+                        <li><strong>Content:</strong> Transaction tables with date, description, amounts</li>
+                        <li><strong>Note:</strong> System will auto-detect transaction type</li>
+                        <li><strong>Limitation:</strong> May not work with all bank formats</li>
+                    </ul>
+
+                    <hr>
+
+                    <h6>Optional Columns (CSV/Excel):</h6>
+                    <ul class="small">
+                        <li><strong>Category:</strong> Category name (will be created if not exists)</li>
+                        <li><strong>Notes:</strong> Additional transaction notes</li>
+                    </ul>
+
+                    <div class="alert alert-info mt-2">
+                        <small><strong>Note:</strong> The account is selected above, not in the file. All transactions will be assigned to the selected account.</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6><i class="bi bi-download me-2"></i>Sample Templates</h6>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">Download sample templates to get started:</p>
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'transactions:download_template' 'csv' %}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-filetype-csv me-1"></i>CSV Template
+                        </a>
+                        <a href="{% url 'transactions:download_template' 'excel' %}" class="btn btn-outline-success btn-sm">
+                            <i class="bi bi-file-earmark-excel me-1"></i>Excel Template
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if upload_results %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-check-circle me-2"></i>Upload Results</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="card border-success">
+                                <div class="card-body text-center">
+                                    <h4 class="text-success">{{ upload_results.successful }}</h4>
+                                    <p class="mb-0">Successful</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-danger">
+                                <div class="card-body text-center">
+                                    <h4 class="text-danger">{{ upload_results.failed }}</h4>
+                                    <p class="mb-0">Failed</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-warning">
+                                <div class="card-body text-center">
+                                    <h4 class="text-warning">{{ upload_results.duplicates }}</h4>
+                                    <p class="mb-0">Duplicates</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-info">
+                                <div class="card-body text-center">
+                                    <h4 class="text-info">{{ upload_results.total }}</h4>
+                                    <p class="mb-0">Total Processed</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% if upload_results.errors %}
+                    <div class="mt-4">
+                        <h6>Upload Errors:</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Row</th>
+                                        <th>Error</th>
+                                        <th>Data</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for error in upload_results.errors %}
+                                    <tr>
+                                        <td>{{ error.row }}</td>
+                                        <td><span class="text-danger">{{ error.message }}</span></td>
+                                        <td><small class="text-muted">{{ error.data|truncatechars:50 }}</small></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Bulk upload form initialized');
+
+    // Find form elements using more reliable selectors
+    const fileInput = document.querySelector('input[name="file"]') || document.querySelector('#id_file');
+    const uploadForm = document.querySelector('form');
+    const uploadButton = document.querySelector('input[type="submit"]') || document.querySelector('button[type="submit"]');
+    const accountSelect = document.querySelector('select[name="account"]') || document.querySelector('#id_account');
+
+    console.log('Form elements found:', {
+        fileInput: !!fileInput,
+        uploadForm: !!uploadForm,
+        uploadButton: !!uploadButton,
+        accountSelect: !!accountSelect
+    });
+
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            const file = this.files[0];
+            console.log('File selected:', file ? file.name : 'none');
+
+            if (file) {
+                // Basic file validation
+                const fileExtension = file.name.toLowerCase().split('.').pop();
+                const allowedExtensions = ['csv', 'xlsx', 'xls', 'pdf'];
+
+                if (!allowedExtensions.includes(fileExtension)) {
+                    alert('Please select a CSV, Excel, or PDF file');
+                    this.value = '';
+                    return;
+                }
+
+                if (file.size > 10 * 1024 * 1024) {
+                    alert('File size must be less than 10MB');
+                    this.value = '';
+                    return;
+                }
+            }
+        });
+    }
+
+    // Form submission handling
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', function(e) {
+            console.log('Form submission started');
+
+            const file = fileInput ? fileInput.files[0] : null;
+            const account = accountSelect ? accountSelect.value : null;
+
+            if (!file) {
+                e.preventDefault();
+                alert('Please select a file to upload');
+                return false;
+            }
+
+            if (!account) {
+                e.preventDefault();
+                alert('Please select an account');
+                return false;
+            }
+
+            // Show loading state on submit button
+            if (uploadButton) {
+                uploadButton.value = 'Processing...';
+                uploadButton.disabled = true;
+            }
+
+            console.log('Form validation passed, submitting...');
+            return true;
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,323 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Dashboard - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h2 mb-1">Dashboard</h1>
+        <p class="text-muted">
+            Welcome back, {{ user.get_short_name }}!
+            {% if current_family_group %}
+                Managing <strong>{{ current_family_group.name }}</strong> finances
+            {% endif %}
+        </p>
+    </div>
+    <div>
+        <a href="{% url 'transactions:create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-2"></i>Add Transaction
+        </a>
+    </div>
+</div>
+
+<!-- Overview Cards -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-1">Total Balance</h6>
+                        <h4 class="mb-0">${{ total_balance|floatformat:2|intcomma }}</h4>
+                    </div>
+                    <i class="bi bi-wallet2 fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-1">This Month Income</h6>
+                        <h4 class="mb-0">${{ monthly_income|floatformat:2|intcomma }}</h4>
+                    </div>
+                    <i class="bi bi-arrow-up-circle fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-danger text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-1">This Month Expenses</h6>
+                        <h4 class="mb-0">${{ monthly_expenses|floatformat:2|intcomma }}</h4>
+                    </div>
+                    <i class="bi bi-arrow-down-circle fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-1">Net Income</h6>
+                        <h4 class="mb-0">${{ net_income|floatformat:2|intcomma }}</h4>
+                    </div>
+                    <i class="bi bi-graph-up fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recent Transactions -->
+    <div class="col-lg-8 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-receipt me-2"></i>Recent Transactions
+                </h5>
+                <a href="{% url 'transactions:list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if recent_transactions %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Description</th>
+                                    <th>Category</th>
+                                    <th>Account</th>
+                                    <th class="text-end">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for transaction in recent_transactions %}
+                                <tr>
+                                    <td>{{ transaction.date|date:"M d" }}</td>
+                                    <td>
+                                        <div class="fw-semibold">{{ transaction.description }}</div>
+                                        {% if transaction.notes %}
+                                            <small class="text-muted">{{ transaction.notes|truncatechars:50 }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if transaction.category %}
+                                            <span class="badge" style="background-color: {{ transaction.category.color }}20; color: {{ transaction.category.color }}">
+                                                {{ transaction.category.name }}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ transaction.account.name }}</small>
+                                    </td>
+                                    <td class="text-end">
+                                        {% if transaction.transaction_type == 'income' %}
+                                            <span class="text-success">+${{ transaction.amount|floatformat:2|intcomma }}</span>
+                                        {% elif transaction.transaction_type == 'expense' %}
+                                            <span class="text-danger">-${{ transaction.amount|floatformat:2|intcomma }}</span>
+                                        {% else %}
+                                            <span class="text-info">${{ transaction.amount|floatformat:2|intcomma }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-receipt text-muted" style="font-size: 3rem;"></i>
+                        <p class="text-muted mt-3">No transactions yet</p>
+                        <a href="{% url 'transactions:create' %}" class="btn btn-primary">
+                            <i class="bi bi-plus-circle me-2"></i>Add Your First Transaction
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions & Account Summary -->
+    <div class="col-lg-4">
+        <!-- Quick Actions -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightning me-2"></i>Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'transactions:create' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle me-2"></i>Add Transaction
+                    </a>
+                    <a href="{% url 'transactions:account_create' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-bank me-2"></i>Add Account
+                    </a>
+                    <a href="{% url 'budgets:create' %}" class="btn btn-outline-success">
+                        <i class="bi bi-pie-chart me-2"></i>Create Budget
+                    </a>
+                    <a href="{% url 'transactions:bulk_upload' %}" class="btn btn-outline-info">
+                        <i class="bi bi-upload me-2"></i>Import Transactions
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Summary -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-bank me-2"></i>Accounts
+                </h5>
+                <a href="{% url 'transactions:accounts' %}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if accounts %}
+                    {% for account in accounts %}
+                    <div class="d-flex justify-content-between align-items-center py-2 {% if not forloop.last %}border-bottom{% endif %}">
+                        <div>
+                            <div class="fw-semibold">{{ account.name }}</div>
+                            <small class="text-muted">{{ account.get_account_type_display }}</small>
+                        </div>
+                        <div class="text-end">
+                            <div class="fw-semibold {% if account.current_balance < 0 %}text-danger{% else %}text-success{% endif %}">
+                                ${{ account.current_balance|floatformat:2|intcomma }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-3">
+                        <i class="bi bi-bank text-muted" style="font-size: 2rem;"></i>
+                        <p class="text-muted mt-2 mb-3">No accounts yet</p>
+                        <a href="{% url 'transactions:account_create' %}" class="btn btn-sm btn-primary">
+                            Add Account
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mt-4">
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-pie-chart me-2"></i>Spending by Category
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="categoryChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-graph-up me-2"></i>Income vs Expenses
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="incomeExpenseChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Category Spending Chart
+    {% if spending_by_category %}
+    const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+    new Chart(categoryCtx, {
+        type: 'doughnut',
+        data: {
+            labels: [{% for item in spending_by_category %}'{{ item.category__name }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                data: [{% for item in spending_by_category %}{{ item.total }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                backgroundColor: [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                    '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FFCE56'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+    {% endif %}
+
+    // Income vs Expenses Chart
+    {% if monthly_trends %}
+    const incomeExpenseCtx = document.getElementById('incomeExpenseChart').getContext('2d');
+    new Chart(incomeExpenseCtx, {
+        type: 'line',
+        data: {
+            labels: [{% for item in monthly_trends %}'{{ item.month|date:"M Y" }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Income',
+                data: [{% for item in monthly_trends %}{{ item.income|default:0 }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                borderColor: '#28a745',
+                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                tension: 0.1
+            }, {
+                label: 'Expenses',
+                data: [{% for item in monthly_trends %}{{ item.expenses|default:0 }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                borderColor: '#dc3545',
+                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+    {% endif %}
+});
+</script>
+{% endblock %}

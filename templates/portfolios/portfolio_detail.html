@@ -1,0 +1,136 @@
+{% extends 'base.html' %                            <p><strong>Total Cost:</strong> ${{ object.total_cost_basis|default:"0.00" }}</p>
+                            <p><strong>P&L:</strong> 
+                                <span class="badge bg-{% if object.total_gain_loss >= 0 %}success{% else %}danger{% endif %}">
+                                    ${{ object.total_gain_loss|default:"0.00" }}</span>
+{% block title %}Portfolio Detail - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="bi bi-briefcase me-2"></i>{{ object.name }}</h5>
+                    <div>
+                        <a href="{% url 'portfolios:update' object.pk %}" class="btn btn-primary btn-sm">
+                            <i class="bi bi-pencil me-1"></i>Edit
+                        </a>
+                        <a href="{% url 'portfolios:delete' object.pk %}" class="btn btn-danger btn-sm">
+                            <i class="bi bi-trash me-1"></i>Delete
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Total Value:</strong> ${{ object.total_value|default:"0.00" }}</p>
+                            <p><strong>Total Cost:</strong> ${{ object.total_cost|default:"0.00" }}</p>
+                            <p><strong>P&L:</strong> 
+                                <span class="badge bg-{% if object.profit_loss >= 0 %}success{% else %}danger{% endif %}">
+                                    ${{ object.profit_loss|default:"0.00" }}
+                                </span>
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Created:</strong> {{ object.created_at|date:"M d, Y" }}</p>
+                            <p><strong>Last Updated:</strong> {{ object.updated_at|date:"M d, Y" }}</p>
+                            <p><strong>Holdings Count:</strong> {{ object.holdings.count }}</p>
+                        </div>
+                    </div>
+                    
+                    {% if object.description %}
+                    <div class="mt-3">
+                        <h6>Description</h6>
+                        <p>{{ object.description }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="bi bi-graph-up me-2"></i>Performance</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Return %:</strong> 
+                        <span class="text-{% if object.return_percentage >= 0 %}success{% else %}danger{% endif %}">
+                            {{ object.return_percentage|default:"0" }}%
+                        </span>
+                    </p>
+                    <p><strong>Day Change:</strong> ${{ object.day_change|default:"0.00" }}</p>
+                    <p><strong>Diversification:</strong> {{ object.diversification_score|default:"N/A" }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Holdings Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6><i class="bi bi-list me-2"></i>Holdings</h6>
+                    <a href="{% url 'portfolios:holding_create' object.pk %}" class="btn btn-success btn-sm">
+                        <i class="bi bi-plus me-1"></i>Add Holding
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if object.holdings.all %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Quantity</th>
+                                    <th>Avg Price</th>
+                                    <th>Current Price</th>
+                                    <th>Market Value</th>
+                                    <th>P&L</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for holding in object.holdings.all %}
+                                <tr>
+                                    <td><strong>{{ holding.symbol }}</strong></td>
+                                    <td>{{ holding.quantity }}</td>
+                                    <td>${{ holding.average_price }}</td>
+                                    <td>${{ holding.current_price|default:"N/A" }}</td>
+                                    <td>${{ holding.market_value|default:"0.00" }}</td>
+                                    <td>
+                                        <span class="text-{% if holding.gain_loss >= 0 %}success{% else %}danger{% endif %}">
+                                            ${{ holding.gain_loss|default:"0.00" }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'portfolios:holding_edit' holding.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                        <a href="{% url 'portfolios:holding_delete' holding.pk %}" class="btn btn-sm btn-outline-danger">Delete</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-inbox display-6"></i>
+                        <p>No holdings in this portfolio yet.</p>
+                        <a href="{% url 'portfolios:holding_create' object.pk %}" class="btn btn-success">
+                            <i class="bi bi-plus me-1"></i>Add First Holding
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-3">
+        <a href="{% url 'portfolios:list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Portfolios
+        </a>
+    </div>
+</div>
+{% endblock %}

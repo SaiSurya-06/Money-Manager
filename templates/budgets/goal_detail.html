@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ object.title }} - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="bi bi-bullseye me-2"></i>{{ object.title }}</h5>
+                    <div>
+                        <a href="{% url 'budgets:goal_edit' object.pk %}" class="btn btn-primary btn-sm">
+                            <i class="bi bi-pencil me-1"></i>Edit
+                        </a>
+                        <a href="{% url 'budgets:goal_delete' object.pk %}" class="btn btn-danger btn-sm">
+                            <i class="bi bi-trash me-1"></i>Delete
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Target Amount:</strong> ${{ object.target_amount }}</p>
+                            <p><strong>Current Amount:</strong> ${{ object.current_amount|default:"0.00" }}</p>
+                            <p><strong>Target Date:</strong> {{ object.target_date }}</p>
+                            <p><strong>Created:</strong> {{ object.created_at|date:"M d, Y" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Progress</h6>
+                            <div class="progress mb-3">
+                                <div class="progress-bar" role="progressbar" 
+                                     style="width: {{ object.progress_percentage|default:0 }}%">
+                                    {{ object.progress_percentage|default:0 }}%
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% if object.description %}
+                    <div class="mt-3">
+                        <h6>Description</h6>
+                        <p>{{ object.description }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="bi bi-graph-up me-2"></i>Quick Stats</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Remaining:</strong> ${{ object.remaining_amount|default:object.target_amount }}</p>
+                    <p><strong>Days Left:</strong> {{ object.days_remaining|default:"N/A" }}</p>
+                    <p><strong>Status:</strong> 
+                        <span class="badge bg-{% if object.is_completed %}success{% else %}warning{% endif %}">
+                            {% if object.is_completed %}Completed{% else %}In Progress{% endif %}
+                        </span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-3">
+        <a href="{% url 'budgets:goals' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Goals
+        </a>
+    </div>
+</div>
+{% endblock %}

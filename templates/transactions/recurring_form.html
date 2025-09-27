@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{% if object %}Edit Recurring Transaction{% else %}Add Recurring Transaction{% endif %} - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>
+                        <i class="bi bi-arrow-repeat me-2"></i>
+                        {% if object %}Edit Recurring Transaction{% else %}Create Recurring Transaction{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        {% crispy form %}
+                        
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check me-1"></i>
+                                {% if object %}Update{% else %}Create{% endif %} Recurring Transaction
+                            </button>
+                            <a href="{% url 'transactions:recurring_list' %}" class="btn btn-secondary ms-2">
+                                <i class="bi bi-x me-1"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="bi bi-info-circle me-2"></i>Recurring Transaction Tips</h6>
+                </div>
+                <div class="card-body">
+                    <h6>Frequency Options:</h6>
+                    <ul class="small">
+                        <li><strong>Daily:</strong> Every day</li>
+                        <li><strong>Weekly:</strong> Same day each week</li>
+                        <li><strong>Monthly:</strong> Same date each month</li>
+                        <li><strong>Quarterly:</strong> Every 3 months</li>
+                        <li><strong>Yearly:</strong> Same date each year</li>
+                    </ul>
+                    
+                    <hr>
+                    
+                    <h6>Examples:</h6>
+                    <ul class="small">
+                        <li>Monthly rent payment</li>
+                        <li>Weekly grocery budget</li>
+                        <li>Annual insurance premium</li>
+                        <li>Daily coffee expenses</li>
+                    </ul>
+                    
+                    <hr>
+                    
+                    <h6>Auto-Processing:</h6>
+                    <p class="small text-muted">
+                        Recurring transactions can be set to create automatically 
+                        or require manual approval when due.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-3">
+        <a href="{% url 'transactions:recurring_list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Recurring Transactions
+        </a>
+    </div>
+</div>
+{% endblock %}

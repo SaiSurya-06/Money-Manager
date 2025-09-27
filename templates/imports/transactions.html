@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Import Transactions - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-file-earmark-arrow-up me-2"></i>Import Transactions</h1>
+        <a href="{% url 'imports:home' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Imports
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-upload me-2"></i>Upload Transaction File</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="file_upload" class="form-label">Select File</label>
+                            <input type="file" class="form-control" id="file_upload" name="file_upload" 
+                                   accept=".csv,.xlsx,.xls" required>
+                            <div class="form-text">Supported formats: CSV, Excel (.xlsx, .xls)</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="file_format" class="form-label">File Format</label>
+                            <select class="form-select" id="file_format" name="file_format" required>
+                                <option value="">Select format...</option>
+                                <option value="csv">CSV</option>
+                                <option value="excel">Excel</option>
+                                <option value="bank_statement">Bank Statement</option>
+                                <option value="credit_card">Credit Card Statement</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="has_headers" name="has_headers" checked>
+                                <label class="form-check-label" for="has_headers">
+                                    File has headers in first row
+                                </label>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload me-1"></i>Import Transactions
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="bi bi-info-circle me-2"></i>Import Guidelines</h6>
+                </div>
+                <div class="card-body">
+                    <h6>Required Columns:</h6>
+                    <ul class="small">
+                        <li>Date</li>
+                        <li>Amount</li>
+                        <li>Description</li>
+                        <li>Account (optional)</li>
+                        <li>Category (optional)</li>
+                    </ul>
+                    
+                    <h6>Supported Formats:</h6>
+                    <ul class="small">
+                        <li>CSV files (.csv)</li>
+                        <li>Excel files (.xlsx, .xls)</li>
+                        <li>Bank statements</li>
+                        <li>Credit card statements</li>
+                    </ul>
+                    
+                    <div class="alert alert-info small mt-3">
+                        <strong>Tip:</strong> Make sure your file has headers and dates are in a standard format (YYYY-MM-DD or MM/DD/YYYY).
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

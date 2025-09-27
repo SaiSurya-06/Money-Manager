@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}Bank Sync - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-bank2 me-2"></i>Bank Synchronization</h1>
+        <a href="{% url 'imports:home' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Imports
+        </a>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>Coming Soon:</strong> Automatic bank synchronization will be available in a future update.
+        For now, please use manual CSV imports or transaction entry.
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-shield-check me-2"></i>Secure Connection</h5>
+                </div>
+                <div class="card-body">
+                    <p>Bank synchronization uses bank-level security with:</p>
+                    <ul>
+                        <li>256-bit SSL encryption</li>
+                        <li>Read-only access to accounts</li>
+                        <li>No storage of banking credentials</li>
+                        <li>Regular security audits</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-building me-2"></i>Supported Banks</h5>
+                </div>
+                <div class="card-body">
+                    <p>When available, we'll support major banks including:</p>
+                    <ul>
+                        <li>Chase</li>
+                        <li>Bank of America</li>
+                        <li>Wells Fargo</li>
+                        <li>Citibank</li>
+                        <li>And 1000+ more institutions</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5><i class="bi bi-gear me-2"></i>Alternative Import Methods</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 text-center mb-3">
+                    <i class="bi bi-filetype-csv display-4 text-primary mb-2"></i>
+                    <h6>CSV Import</h6>
+                    <p class="small text-muted">Download statements from your bank and upload CSV files</p>
+                    <a href="{% url 'imports:csv_upload' %}" class="btn btn-primary btn-sm">Upload CSV</a>
+                </div>
+                
+                <div class="col-md-4 text-center mb-3">
+                    <i class="bi bi-file-earmark-spreadsheet display-4 text-success mb-2"></i>
+                    <h6>Excel Import</h6>
+                    <p class="small text-muted">Import from Excel spreadsheets with transaction data</p>
+                    <a href="{% url 'imports:transactions' %}" class="btn btn-success btn-sm">Import Excel</a>
+                </div>
+                
+                <div class="col-md-4 text-center mb-3">
+                    <i class="bi bi-pencil-square display-4 text-info mb-2"></i>
+                    <h6>Manual Entry</h6>
+                    <p class="small text-muted">Add transactions manually for full control</p>
+                    <a href="{% url 'transactions:create' %}" class="btn btn-info btn-sm">Add Transaction</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+Django>=5.0,<5.1
+django-crispy-forms>=2.0
+crispy-bootstrap5>=0.7
+Pillow>=10.0
+python-decouple>=3.6
+django-extensions>=3.2
+requests>=2.31
+pandas>=2.0
+PyPDF2>=3.0
+openpyxl>=3.1
+celery>=5.3
+redis>=5.0
+django-celery-beat>=2.5
+whitenoise>=6.5
+gunicorn>=21.0

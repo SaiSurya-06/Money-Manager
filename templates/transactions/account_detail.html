@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+
+{% block title %}Account Details - {{ account.name }} - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-bank me-2"></i>{{ account.name }}</h1>
+        <div class="btn-group" role="group">
+            <a href="{% url 'transactions:account_update' account.pk %}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil me-1"></i>Edit Account
+            </a>
+            <a href="{% url 'transactions:accounts' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to Accounts
+            </a>
+        </div>
+    </div>
+
+    <!-- Account Info Card -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6>Account Information</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th width="40%">Account Type:</th>
+                            <td>{{ account.get_account_type_display }}</td>
+                        </tr>
+                        <tr>
+                            <th>Bank:</th>
+                            <td>{{ account.bank_name|default:"Not specified" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Account Number:</th>
+                            <td>
+                                {% if account.account_number %}
+                                    ****{{ account.account_number|slice:"-4:" }}
+                                {% else %}
+                                    Not specified
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Currency:</th>
+                            <td>{{ account.currency }}</td>
+                        </tr>
+                        <tr>
+                            <th>Current Balance:</th>
+                            <td>
+                                <h4 class="{% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    ${{ account.current_balance|floatformat:2 }}
+                                </h4>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6>Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'transactions:create' %}?account={{ account.pk }}" class="btn btn-success">
+                            <i class="bi bi-plus-circle me-1"></i>Add Transaction
+                        </a>
+                        <a href="{% url 'transactions:list' %}?account={{ account.pk }}" class="btn btn-primary">
+                            <i class="bi bi-list me-1"></i>View Transactions
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Transactions -->
+    <div class="card">
+        <div class="card-header">
+            <h6>Recent Transactions</h6>
+        </div>
+        <div class="card-body">
+            {% if recent_transactions %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Category</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in recent_transactions %}
+                            <tr>
+                                <td>{{ transaction.date|date:"M d, Y" }}</td>
+                                <td>{{ transaction.description }}</td>
+                                <td>
+                                    {% if transaction.category %}
+                                        {{ transaction.category.name }}
+                                    {% else %}
+                                        <span class="text-muted">Uncategorized</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if transaction.transaction_type == 'income' %}
+                                        <span class="badge bg-success">Income</span>
+                                    {% elif transaction.transaction_type == 'expense' %}
+                                        <span class="badge bg-danger">Expense</span>
+                                    {% else %}
+                                        <span class="badge bg-info">Transfer</span>
+                                    {% endif %}
+                                </td>
+                                <td class="{% if transaction.transaction_type == 'income' %}text-success{% elif transaction.transaction_type == 'expense' %}text-danger{% endif %}">
+                                    {% if transaction.transaction_type == 'income' %}+{% elif transaction.transaction_type == 'expense' %}-{% endif %}${{ transaction.amount|floatformat:2 }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-inbox display-4 text-muted"></i>
+                    <p class="text-muted mt-2">No transactions found for this account.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
