@@ -470,7 +470,31 @@ class TransactionImportService:
         try:
             # Read PDF content
             file.seek(0)
-            pdf_reader = PyPDF2.PdfReader(file)
+            
+            # Try to create PDF reader with error handling
+            try:
+                pdf_reader = PyPDF2.PdfReader(file)
+            except Exception as pdf_error:
+                logger.error(f"Failed to read PDF file: {pdf_error}")
+                return {
+                    'success': False,
+                    'error': (
+                        f'❌ Cannot read PDF file\n\n'
+                        f'🔍 Error details: {str(pdf_error)}\n\n'
+                        '💡 This usually means:\n'
+                        '• PDF file is corrupted or damaged\n'
+                        '• PDF file is not a valid PDF format\n'
+                        '• PDF was created incorrectly\n\n'
+                        '🔄 Solutions:\n'
+                        '1. Re-download the statement from HDFC NetBanking\n'
+                        '2. Ensure you\'re downloading the PDF (not printing to PDF)\n'
+                        '3. Try a different date range or account\n'
+                        '4. Use CSV format as an alternative\n\n'
+                        '📞 If the problem persists, contact HDFC support'
+                    ),
+                    'created_count': 0,
+                    'errors': []
+                }
 
             # Check if PDF is encrypted
             if pdf_reader.is_encrypted:
@@ -486,48 +510,105 @@ class TransactionImportService:
             total_pages = len(pdf_reader.pages)
             logger.info(f"Processing PDF with {total_pages} pages")
             
+            extraction_attempts = []
+            
             for page_num in range(total_pages):
+                page_text = ""
+                attempt_info = f"Page {page_num + 1}"
+                
                 try:
                     page = pdf_reader.pages[page_num]
                     logger.info(f"Extracting text from page {page_num + 1}")
                     
                     # Method 1: Standard text extraction
-                    page_text = page.extract_text()
+                    try:
+                        page_text = page.extract_text()
+                        if page_text:
+                            attempt_info += f" - Standard extraction: {len(page_text)} chars"
+                        else:
+                            attempt_info += " - Standard extraction: No text"
+                    except Exception as e:
+                        attempt_info += f" - Standard extraction failed: {e}"
                     
-                    # Method 2: Try alternative extraction if minimal text
+                    # Method 2: Alternative extraction methods
                     if not page_text or len(page_text.strip()) < 20:
-                        logger.warning(f"Standard extraction yielded minimal text on page {page_num + 1}")
-                        # Try different extraction parameters
+                        logger.info(f"Trying alternative extraction methods for page {page_num + 1}")
+                        
+                        # Try extractText (older PyPDF2 method)
                         try:
-                            if hasattr(page, 'extract_text'):
-                                page_text = page.extract_text()
+                            if hasattr(page, 'extractText'):
+                                alt_text = page.extractText()
+                                if alt_text and len(alt_text) > len(page_text):
+                                    page_text = alt_text
+                                    attempt_info += f" - Alt method 1: {len(alt_text)} chars"
+                        except Exception as e:
+                            attempt_info += f" - Alt method 1 failed: {e}"
+                        
+                        # Try accessing text content directly
+                        try:
+                            if hasattr(page, '_get_contents_of_obj'):
+                                # This is a more advanced method
+                                pass
                         except:
                             pass
                     
-                    if page_text:
+                    # Method 3: Check if page has any content objects
+                    try:
+                        if hasattr(page, '/Contents'):
+                            contents = page['/Contents']
+                            if contents:
+                                attempt_info += " - Has content objects"
+                            else:
+                                attempt_info += " - No content objects"
+                    except:
+                        pass
+                    
+                    if page_text and page_text.strip():
                         pdf_text += f"\n--- PAGE {page_num + 1} ---\n" + page_text + "\n"
+                        logger.info(f"Successfully extracted {len(page_text)} characters from page {page_num + 1}")
                     else:
-                        logger.warning(f"No text extracted from page {page_num + 1}")
+                        logger.warning(f"No meaningful text extracted from page {page_num + 1}")
                         
                 except Exception as e:
-                    logger.warning(f"Could not extract text from page {page_num + 1}: {str(e)}")
-                    continue
+                    logger.error(f"Critical error extracting from page {page_num + 1}: {str(e)}")
+                    attempt_info += f" - Critical error: {e}"
+                
+                extraction_attempts.append(attempt_info)
+            
+            # Log extraction summary
+            logger.info("PDF Extraction Summary:")
+            for attempt in extraction_attempts:
+                logger.info(f"  {attempt}")
 
             # Validate extracted text
             pdf_text = pdf_text.strip()
             if not pdf_text:
                 logger.error("No text could be extracted from any page")
+                logger.error("PDF Extraction Details:")
+                for attempt in extraction_attempts:
+                    logger.error(f"  {attempt}")
+                
                 return {
                     'success': False,
                     'error': (
-                        'No text could be extracted from PDF. This usually happens with:\n'
-                        '• Image-based or scanned PDFs\n'
-                        '• Corrupted PDF files\n'
-                        '• Password-protected PDFs\n\n'
-                        'Solutions:\n'
-                        '1. Download a fresh copy from your bank\n'
-                        '2. Ensure the PDF has selectable text (not just an image)\n'
-                        '3. Try a different PDF export format from your bank'
+                        '❌ No text could be extracted from PDF\n\n'
+                        '🔍 This usually happens with:\n'
+                        '• Image-based or scanned PDFs (most common)\n'
+                        '• Corrupted or damaged PDF files\n'
+                        '• Password-protected PDFs\n'
+                        '• PDFs created from images/screenshots\n\n'
+                        '💡 Solutions for HDFC Bank Statements:\n'
+                        '1. Log into HDFC NetBanking\n'
+                        '2. Go to "Account Summary" → "View Statement"\n'
+                        '3. Select your account and date range\n'
+                        '4. Click "Download Statement" (not "Print")\n'
+                        '5. Choose "PDF Format" (not "Image Format")\n'
+                        '6. Ensure the downloaded PDF has selectable text\n\n'
+                        '🔄 Alternative options:\n'
+                        '• Try downloading from HDFC Mobile Banking app\n'
+                        '• Request statement via email from bank\n'
+                        '• Use CSV format if PDF continues to fail\n\n'
+                        '⚠️  Note: Screenshot PDFs and scanned images won\'t work'
                     ),
                     'created_count': 0,
                     'errors': []
