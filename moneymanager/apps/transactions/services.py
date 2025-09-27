@@ -481,23 +481,99 @@ class TransactionImportService:
                     'errors': []
                 }
 
-            # Extract text from all pages
+            # Extract text from all pages with enhanced extraction
             pdf_text = ""
-            for page_num in range(len(pdf_reader.pages)):
+            total_pages = len(pdf_reader.pages)
+            logger.info(f"Processing PDF with {total_pages} pages")
+            
+            for page_num in range(total_pages):
                 try:
                     page = pdf_reader.pages[page_num]
-                    pdf_text += page.extract_text() + "\n"
+                    logger.info(f"Extracting text from page {page_num + 1}")
+                    
+                    # Method 1: Standard text extraction
+                    page_text = page.extract_text()
+                    
+                    # Method 2: Try alternative extraction if minimal text
+                    if not page_text or len(page_text.strip()) < 20:
+                        logger.warning(f"Standard extraction yielded minimal text on page {page_num + 1}")
+                        # Try different extraction parameters
+                        try:
+                            if hasattr(page, 'extract_text'):
+                                page_text = page.extract_text()
+                        except:
+                            pass
+                    
+                    if page_text:
+                        pdf_text += f"\n--- PAGE {page_num + 1} ---\n" + page_text + "\n"
+                    else:
+                        logger.warning(f"No text extracted from page {page_num + 1}")
+                        
                 except Exception as e:
                     logger.warning(f"Could not extract text from page {page_num + 1}: {str(e)}")
                     continue
 
-            if not pdf_text.strip():
+            # Validate extracted text
+            pdf_text = pdf_text.strip()
+            if not pdf_text:
+                logger.error("No text could be extracted from any page")
                 return {
                     'success': False,
-                    'error': 'No text could be extracted from PDF. PDF may be image-based or corrupted.',
+                    'error': (
+                        'No text could be extracted from PDF. This usually happens with:\n'
+                        '• Image-based or scanned PDFs\n'
+                        '• Corrupted PDF files\n'
+                        '• Password-protected PDFs\n\n'
+                        'Solutions:\n'
+                        '1. Download a fresh copy from your bank\n'
+                        '2. Ensure the PDF has selectable text (not just an image)\n'
+                        '3. Try a different PDF export format from your bank'
+                    ),
                     'created_count': 0,
                     'errors': []
                 }
+                
+            # Check for meaningful content
+            meaningful_chars = sum(1 for c in pdf_text if c.isalnum())
+            text_lines = [line.strip() for line in pdf_text.split('\n') if line.strip()]
+            
+            if meaningful_chars < 10:
+                logger.error(f"PDF contains insufficient readable text ({meaningful_chars} characters)")
+                return {
+                    'success': False,
+                    'error': (
+                        f'PDF contains insufficient readable text ({meaningful_chars} characters). '
+                        'This indicates the PDF is likely a scanned image.\n\n'
+                        'For HDFC bank statements:\n'
+                        '1. Log into HDFC NetBanking\n'
+                        '2. Go to Account Statements\n'
+                        '3. Select "Download as PDF (Text Format)"\n'
+                        '4. Avoid "Print" or "Image" format options'
+                    ),
+                    'created_count': 0,
+                    'errors': []
+                }
+            
+            # Additional validation for bank statement format
+            bank_indicators = ['statement', 'account', 'balance', 'transaction', 'debit', 'credit']
+            has_bank_content = any(indicator.lower() in pdf_text.lower() for indicator in bank_indicators)
+            
+            if not has_bank_content and len(text_lines) < 5:
+                logger.warning(f"PDF doesn't appear to contain bank statement data")
+                return {
+                    'success': False,
+                    'error': (
+                        'This PDF doesn\'t appear to contain bank statement data.\n\n'
+                        'Please ensure you\'re uploading:\n'
+                        '• A bank account statement (not a passbook scan)\n'
+                        '• A complete statement with transaction details\n'
+                        '• A text-based PDF (not a scanned image)'
+                    ),
+                    'created_count': 0,
+                    'errors': []
+                }
+                
+            logger.info(f"Successfully extracted {len(pdf_text)} characters, {meaningful_chars} meaningful characters")
 
             # Debug: Log extracted text (first 1000 characters)
             logger.info(f"PDF text extracted ({len(pdf_text)} chars): {pdf_text[:1000]}...")
@@ -876,9 +952,6 @@ class TransactionImportService:
         
         logger.info(f"=== HDFC PARSING ===")
         
-        # HDFC patterns - will be implemented based on HDFC statement format
-        # This is a placeholder for HDFC-specific parsing logic
-        
         for line_num, line in enumerate(lines, 1):
             line = line.strip()
             if len(line) < 15:
@@ -887,15 +960,146 @@ class TransactionImportService:
             # Skip HDFC header/footer lines
             skip_indicators = [
                 'hdfc bank', 'housing development finance', 'statement of account',
-                'account number', 'branch', 'customer name'
+                'account number:', 'branch:', 'customer name:', 'ifsc code:',
+                'opening balance', 'closing balance', 'page no', 'date', 'description',
+                'cheque no', 'debit', 'credit', 'balance'
             ]
             
             if any(skip in line.lower() for skip in skip_indicators):
                 continue
 
-            # HDFC-specific parsing logic will be added here
-            # For now, using generic parsing
+            logger.info(f"HDFC Line {line_num}: {line}")
+
+            # HDFC format patterns - multiple variations
+            # Pattern 1: DD/MM/YY DD/MM/YY Description Amount Dr/Cr Balance
+            # Pattern 2: DD-MM-YYYY Description Ref_No Debit Credit Balance
             
+            # Try different HDFC patterns
+            hdfc_patterns = [
+                # Pattern 1: Date-based with DD/MM/YY format
+                r'^(\d{2}/\d{2}/\d{2})\s+\d{2}/\d{2}/\d{2}\s+(.+?)\s+([\d,]+\.\d{2})\s+(Dr|Cr)\s+([\d,]+\.\d{2}).*$',
+                # Pattern 2: Date-based with DD-MM-YYYY format  
+                r'^(\d{2}-\d{2}-\d{4})\s+(.+?)\s+(\d+)\s*([\d,]*\.?\d*)\s*([\d,]*\.?\d*)\s*([\d,]+\.\d{2}).*$',
+                # Pattern 3: Simple date + description + amount
+                r'^(\d{2}/\d{2}/\d{4})\s+(.+?)\s+([\d,]+\.\d{2})\s*(Dr|Cr|DR|CR)?\s*([\d,]+\.\d{2})?.*$'
+            ]
+            
+            transaction_found = False
+            
+            for pattern_num, pattern in enumerate(hdfc_patterns, 1):
+                match = re.search(pattern, line, re.IGNORECASE)
+                if match:
+                    try:
+                        if pattern_num == 1:  # DD/MM/YY Dr/Cr format
+                            date_str = self._convert_hdfc_date(match.group(1))
+                            description = match.group(2).strip()
+                            amount_str = match.group(3)
+                            dr_cr = match.group(4).upper()
+                            balance_str = match.group(5) if len(match.groups()) >= 5 else None
+                            
+                            trans_type = 'expense' if dr_cr in ['DR', 'DEBIT'] else 'income'
+                            
+                        elif pattern_num == 2:  # DD-MM-YYYY with debit/credit columns
+                            date_str = self._normalize_date(match.group(1))
+                            description = match.group(2).strip()
+                            debit_amt = match.group(4) if match.group(4) and match.group(4).strip() else None
+                            credit_amt = match.group(5) if match.group(5) and match.group(5).strip() else None
+                            
+                            if debit_amt and debit_amt != '-':
+                                trans_type = 'expense'
+                                amount_str = debit_amt.replace(',', '')
+                            elif credit_amt and credit_amt != '-':
+                                trans_type = 'income'
+                                amount_str = credit_amt.replace(',', '')
+                            else:
+                                continue
+                                
+                        else:  # Pattern 3: Simple format
+                            date_str = self._normalize_date(match.group(1))
+                            description = match.group(2).strip()
+                            amount_str = match.group(3)
+                            dr_cr = match.group(4).upper() if match.group(4) else None
+                            
+                            # Determine type from description if no Dr/Cr indicator
+                            if dr_cr in ['DR', 'DEBIT']:
+                                trans_type = 'expense'
+                            elif dr_cr in ['CR', 'CREDIT']:
+                                trans_type = 'income'
+                            else:
+                                # Use description keywords to determine type
+                                desc_lower = description.lower()
+                                if any(term in desc_lower for term in ['withdrawal', 'atm', 'purchase', 'payment', 'debit', 'fee', 'charge']):
+                                    trans_type = 'expense'
+                                else:
+                                    trans_type = 'income'
+                        
+                        # Clean amount string
+                        amount_str = amount_str.replace(',', '') if amount_str else '0'
+                        
+                        if float(amount_str) > 0:
+                            logger.info(f"*** HDFC TRANSACTION FOUND ON LINE {line_num} ***")
+                            logger.info(f"  Date: {date_str}")
+                            logger.info(f"  Description: {description}")
+                            logger.info(f"  Amount: {amount_str}")
+                            logger.info(f"  Type: {trans_type}")
+                            
+                            transactions.append({
+                                'date_str': date_str,
+                                'description': description,
+                                'amount_str': amount_str,
+                                'type': trans_type,
+                                'source_line': line,
+                                'pattern_used': pattern_num,
+                                'bank_type': 'HDFC'
+                            })
+                            
+                            transaction_found = True
+                            break
+                            
+                    except Exception as e:
+                        logger.error(f"Error parsing HDFC transaction on line {line_num}: {str(e)}")
+                        continue
+            
+            if not transaction_found:
+                # Try generic parsing as fallback for HDFC
+                amounts = re.findall(r'([\d,]+\.\d{2})', line)
+                if len(amounts) >= 1 and re.search(r'\d{2}[/-]\d{2}[/-]\d{2,4}', line):
+                    # Has date pattern and amounts, try to parse generically
+                    date_match = re.search(r'(\d{2}[/-]\d{2}[/-]\d{2,4})', line)
+                    if date_match:
+                        try:
+                            date_str = self._normalize_date(date_match.group(1))
+                            # Extract description (text before first amount)
+                            desc_match = re.search(r'^.*?(\d{2}[/-]\d{2}[/-]\d{2,4})\s+(.+?)\s+[\d,]+\.\d{2}', line)
+                            description = desc_match.group(2).strip() if desc_match else 'HDFC Transaction'
+                            amount_str = amounts[0].replace(',', '')
+                            
+                            # Determine type from keywords
+                            desc_lower = line.lower()
+                            trans_type = 'expense' if any(term in desc_lower for term in [
+                                'debit', 'dr', 'withdrawal', 'atm', 'purchase', 'payment', 'fee', 'charge'
+                            ]) else 'income'
+                            
+                            logger.info(f"*** HDFC GENERIC TRANSACTION ON LINE {line_num} ***")
+                            logger.info(f"  Date: {date_str}")
+                            logger.info(f"  Description: {description}")
+                            logger.info(f"  Amount: {amount_str}")
+                            logger.info(f"  Type: {trans_type}")
+                            
+                            transactions.append({
+                                'date_str': date_str,
+                                'description': description,
+                                'amount_str': amount_str,
+                                'type': trans_type,
+                                'source_line': line,
+                                'pattern_used': 'generic',
+                                'bank_type': 'HDFC'
+                            })
+                            
+                        except Exception as e:
+                            logger.error(f"Error in HDFC generic parsing on line {line_num}: {str(e)}")
+                            continue
+
         logger.info(f"=== FOUND {len(transactions)} HDFC TRANSACTIONS ===")
         return transactions
 
@@ -986,6 +1190,16 @@ class TransactionImportService:
             return date_obj.strftime('%d/%m/%Y')
         except ValueError as e:
             logger.error(f"Error converting SBI date '{date_str}': {e}")
+            return date_str
+
+    def _convert_hdfc_date(self, date_str: str) -> str:
+        """Convert HDFC date format (DD/MM/YY) to DD/MM/YYYY."""
+        try:
+            # HDFC format: "01/08/23" 
+            date_obj = datetime.strptime(date_str, '%d/%m/%y')
+            return date_obj.strftime('%d/%m/%Y')
+        except ValueError as e:
+            logger.error(f"Error converting HDFC date '{date_str}': {e}")
             return date_str
 
     def _process_federal_bank_transaction(self, match, current_date: str, current_description: str, 
