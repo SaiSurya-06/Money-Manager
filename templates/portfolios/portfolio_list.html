@@ -26,12 +26,12 @@
                         <div class="row text-center mb-3">
                             <div class="col">
                                 <small class="text-muted">Total Value</small>
-                                <div class="fw-bold">${{ portfolio.total_value|floatformat:2 }}</div>
+                                <div class="fw-bold">₹{{ portfolio.total_value|floatformat:2 }}</div>
                             </div>
                             <div class="col">
                                 <small class="text-muted">Gain/Loss</small>
                                 <div class="fw-bold {% if portfolio.total_gain_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                    {% if portfolio.total_gain_loss >= 0 %}+{% endif %}${{ portfolio.total_gain_loss|floatformat:2 }}
+                                    {% if portfolio.total_gain_loss >= 0 %}+{% endif %}₹{{ portfolio.total_gain_loss|floatformat:2 }}
                                 </div>
                             </div>
                         </div>

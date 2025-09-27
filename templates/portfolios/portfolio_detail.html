@@ -1,7 +1,7 @@
-{% extends 'base.html' %                            <p><strong>Total Cost:</strong> ${{ object.total_cost_basis|default:"0.00" }}</p>
+{% extends 'base.html' %                            <p><strong>Total Cost:</strong> ₹{{ object.total_cost_basis|default:"0.00" }}</p>
                             <p><strong>P&L:</strong> 
                                 <span class="badge bg-{% if object.total_gain_loss >= 0 %}success{% else %}danger{% endif %}">
-                                    ${{ object.total_gain_loss|default:"0.00" }}</span>
+                                    ₹{{ object.total_gain_loss|default:"0.00" }}</span>
 {% block title %}Portfolio Detail - MoneyManager{% endblock %}
 
 {% block content %}
@@ -23,11 +23,11 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <p><strong>Total Value:</strong> ${{ object.total_value|default:"0.00" }}</p>
-                            <p><strong>Total Cost:</strong> ${{ object.total_cost|default:"0.00" }}</p>
+                            <p><strong>Total Value:</strong> ₹{{ object.total_value|default:"0.00" }}</p>
+                            <p><strong>Total Cost:</strong> ₹{{ object.total_cost|default:"0.00" }}</p>
                             <p><strong>P&L:</strong> 
                                 <span class="badge bg-{% if object.profit_loss >= 0 %}success{% else %}danger{% endif %}">
-                                    ${{ object.profit_loss|default:"0.00" }}
+                                    ₹{{ object.profit_loss|default:"0.00" }}
                                 </span>
                             </p>
                         </div>
@@ -59,7 +59,7 @@
                             {{ object.return_percentage|default:"0" }}%
                         </span>
                     </p>
-                    <p><strong>Day Change:</strong> ${{ object.day_change|default:"0.00" }}</p>
+                    <p><strong>Day Change:</strong> ₹{{ object.day_change|default:"0.00" }}</p>
                     <p><strong>Diversification:</strong> {{ object.diversification_score|default:"N/A" }}</p>
                 </div>
             </div>
@@ -96,12 +96,12 @@
                                 <tr>
                                     <td><strong>{{ holding.symbol }}</strong></td>
                                     <td>{{ holding.quantity }}</td>
-                                    <td>${{ holding.average_price }}</td>
-                                    <td>${{ holding.current_price|default:"N/A" }}</td>
-                                    <td>${{ holding.market_value|default:"0.00" }}</td>
+                                    <td>₹{{ holding.average_price }}</td>
+                                    <td>₹{{ holding.current_price|default:"N/A" }}</td>
+                                    <td>₹{{ holding.market_value|default:"0.00" }}</td>
                                     <td>
                                         <span class="text-{% if holding.gain_loss >= 0 %}success{% else %}danger{% endif %}">
-                                            ${{ holding.gain_loss|default:"0.00" }}
+                                            ₹{{ holding.gain_loss|default:"0.00" }}
                                         </span>
                                     </td>
                                     <td>

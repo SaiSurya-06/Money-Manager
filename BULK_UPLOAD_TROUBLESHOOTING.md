@@ -58,7 +58,7 @@ The bulk upload functionality has been completely overhauled with the following 
 **Expected Format**: Positive numbers (e.g., `123.45`)
 **Common Issues**:
 - Negative amounts → Use positive amounts only
-- Currency symbols → Remove `$`, `€`, etc.
+- Currency symbols → Remove `₹`, `$`, `€`, etc.
 - Text in amount field → Use numbers only
 
 ### Issue 5: File upload fails immediately

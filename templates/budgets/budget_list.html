@@ -25,7 +25,7 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title">Total Budgeted</h6>
-                            <h4>${{ total_budgeted|floatformat:2 }}</h4>
+                            <h4>₹{{ total_budgeted|floatformat:2 }}</h4>
                         </div>
                         <i class="bi bi-wallet display-6"></i>
                     </div>
@@ -38,7 +38,7 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title">Total Spent</h6>
-                            <h4>${{ total_spent|floatformat:2 }}</h4>
+                            <h4>₹{{ total_spent|floatformat:2 }}</h4>
                         </div>
                         <i class="bi bi-credit-card display-6"></i>
                     </div>
@@ -94,16 +94,16 @@
                         <div class="row text-center mb-3">
                             <div class="col">
                                 <small class="text-muted">Budgeted</small>
-                                <div class="fw-bold">${{ budget.total_budget|floatformat:2 }}</div>
+                                <div class="fw-bold">₹{{ budget.total_budget|floatformat:2 }}</div>
                             </div>
                             <div class="col">
                                 <small class="text-muted">Spent</small>
-                                <div class="fw-bold text-danger">${{ budget.spent_amount|floatformat:2 }}</div>
+                                <div class="fw-bold text-danger">₹{{ budget.spent_amount|floatformat:2 }}</div>
                             </div>
                             <div class="col">
                                 <small class="text-muted">Remaining</small>
                                 <div class="fw-bold {% if budget.remaining_amount >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                    ${{ budget.remaining_amount|floatformat:2 }}
+                                    ₹{{ budget.remaining_amount|floatformat:2 }}
                                 </div>
                             </div>
                         </div>

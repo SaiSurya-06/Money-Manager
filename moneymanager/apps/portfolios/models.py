@@ -89,7 +89,7 @@ class Asset(TimeStampedModel):
     name = models.CharField(max_length=200)
     asset_type = models.CharField(max_length=20, choices=ASSET_TYPES)
     exchange = models.CharField(max_length=10, blank=True)
-    currency = models.CharField(max_length=3, default='USD')
+    currency = models.CharField(max_length=3, default='INR')
 
     # Current price data
     current_price = models.DecimalField(max_digits=12, decimal_places=4, default=0)

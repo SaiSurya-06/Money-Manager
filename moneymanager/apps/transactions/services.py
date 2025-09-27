@@ -275,7 +275,7 @@ class TransactionImportService:
 
         # Parse and validate amount
         try:
-            amount = Decimal(amount_str.replace('$', '').replace(',', '').replace('(', '-').replace(')', ''))
+            amount = Decimal(amount_str.replace('$', '').replace('₹', '').replace(',', '').replace('(', '-').replace(')', ''))
             if amount <= 0:
                 raise ValueError("Amount must be positive")
         except (InvalidOperation, ValueError):
@@ -360,7 +360,7 @@ class TransactionImportService:
 
         # Parse and validate amount
         try:
-            amount = Decimal(str(amount_str).replace('$', '').replace(',', '').replace('(', '-').replace(')', ''))
+            amount = Decimal(str(amount_str).replace('$', '').replace('₹', '').replace(',', '').replace('(', '-').replace(')', ''))
             if amount <= 0:
                 raise ValueError("Amount must be positive")
         except (InvalidOperation, ValueError):
@@ -1680,7 +1680,7 @@ class TransactionImportService:
                 raise ValueError(f"Invalid date format: {trans_data['date_str']}")
 
             # Parse amount
-            amount_str = trans_data['amount_str'].replace(',', '').replace('$', '')
+            amount_str = trans_data['amount_str'].replace(',', '').replace('$', '').replace('₹', '')
             try:
                 amount = Decimal(amount_str)
                 if amount <= 0:

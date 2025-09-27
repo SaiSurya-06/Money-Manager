@@ -27,7 +27,7 @@ class Account(TimeStampedModel):
     bank_name = models.CharField(max_length=100, blank=True)
     account_number = models.CharField(max_length=50, blank=True)
     current_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    currency = models.CharField(max_length=3, default='USD')
+    currency = models.CharField(max_length=3, default='INR')
     is_active = models.BooleanField(default=True)
     include_in_totals = models.BooleanField(default=True)
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='accounts')
@@ -148,7 +148,7 @@ class Transaction(TimeStampedModel):
         ]
 
     def __str__(self):
-        return f"{self.get_transaction_type_display()}: {self.description} - ${self.amount}"
+        return f"{self.get_transaction_type_display()}: {self.description} - ₹{self.amount}"
 
     def save(self, *args, **kwargs):
         # Set family group from account if not set

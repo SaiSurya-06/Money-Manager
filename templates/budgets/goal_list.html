@@ -49,15 +49,15 @@
                             <div class="row text-center small mb-3">
                                 <div class="col">
                                     <div class="text-muted">Current</div>
-                                    <div class="fw-bold">${{ goal.current_amount|floatformat:2 }}</div>
+                                    <div class="fw-bold">₹{{ goal.current_amount|floatformat:2 }}</div>
                                 </div>
                                 <div class="col">
                                     <div class="text-muted">Target</div>
-                                    <div class="fw-bold">${{ goal.target_amount|floatformat:2 }}</div>
+                                    <div class="fw-bold">₹{{ goal.target_amount|floatformat:2 }}</div>
                                 </div>
                                 <div class="col">
                                     <div class="text-muted">Remaining</div>
-                                    <div class="fw-bold text-primary">${{ goal.remaining_amount|floatformat:2 }}</div>
+                                    <div class="fw-bold text-primary">₹{{ goal.remaining_amount|floatformat:2 }}</div>
                                 </div>
                             </div>
 
@@ -100,11 +100,11 @@
                             <div class="row text-center small">
                                 <div class="col">
                                     <div class="text-muted">Final Amount</div>
-                                    <div class="fw-bold text-success">${{ goal.current_amount|floatformat:2 }}</div>
+                                    <div class="fw-bold text-success">₹{{ goal.current_amount|floatformat:2 }}</div>
                                 </div>
                                 <div class="col">
                                     <div class="text-muted">Target</div>
-                                    <div class="fw-bold">${{ goal.target_amount|floatformat:2 }}</div>
+                                    <div class="fw-bold">₹{{ goal.target_amount|floatformat:2 }}</div>
                                 </div>
                             </div>
                         </div>

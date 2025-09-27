@@ -22,8 +22,8 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <p><strong>Target Amount:</strong> ${{ object.target_amount }}</p>
-                            <p><strong>Current Amount:</strong> ${{ object.current_amount|default:"0.00" }}</p>
+                            <p><strong>Target Amount:</strong> ₹{{ object.target_amount }}</p>
+                            <p><strong>Current Amount:</strong> ₹{{ object.current_amount|default:"0.00" }}</p>
                             <p><strong>Target Date:</strong> {{ object.target_date }}</p>
                             <p><strong>Created:</strong> {{ object.created_at|date:"M d, Y" }}</p>
                         </div>
@@ -54,7 +54,7 @@
                     <h6><i class="bi bi-graph-up me-2"></i>Quick Stats</h6>
                 </div>
                 <div class="card-body">
-                    <p><strong>Remaining:</strong> ${{ object.remaining_amount|default:object.target_amount }}</p>
+                    <p><strong>Remaining:</strong> ₹{{ object.remaining_amount|default:object.target_amount }}</p>
                     <p><strong>Days Left:</strong> {{ object.days_remaining|default:"N/A" }}</p>
                     <p><strong>Status:</strong> 
                         <span class="badge bg-{% if object.is_completed %}success{% else %}warning{% endif %}">

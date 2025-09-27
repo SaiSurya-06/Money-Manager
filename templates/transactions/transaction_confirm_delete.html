@@ -20,7 +20,7 @@
                         <h6>Transaction Details:</h6>
                         <ul class="list-unstyled">
                             <li><strong>Description:</strong> {{ object.description }}</li>
-                            <li><strong>Amount:</strong> ${{ object.amount|floatformat:2 }}</li>
+                            <li><strong>Amount:</strong> ₹{{ object.amount|floatformat:2 }}</li>
                             <li><strong>Date:</strong> {{ object.date|date:"M d, Y" }}</li>
                             <li><strong>Type:</strong> {{ object.get_transaction_type_display }}</li>
                         </ul>

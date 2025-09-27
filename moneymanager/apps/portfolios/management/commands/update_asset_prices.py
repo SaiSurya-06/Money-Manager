@@ -95,7 +95,7 @@ class Command(BaseCommand):
                 asset = Asset.objects.get(symbol=symbol)
                 self.stdout.write(
                     self.style.SUCCESS(
-                        f'✓ {symbol}: ${asset.current_price} '
+                        f'✓ {symbol}: ₹{asset.current_price} '
                         f'({asset.day_change:+.2f} {asset.day_change_percentage:+.2f}%)'
                     )
                 )

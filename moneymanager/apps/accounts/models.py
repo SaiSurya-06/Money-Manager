@@ -23,7 +23,7 @@ class User(AbstractUser):
     preferred_currency = models.CharField(
         _('preferred currency'),
         max_length=3,
-        default='USD',
+        default='INR',
         help_text=_('User preferred currency code (ISO 4217)')
     )
     is_email_verified = models.BooleanField(_('email verified'), default=False)

@@ -22,7 +22,7 @@ if __name__ == '__main__':
                 'account_type': 'checking',
                 'bank_name': 'Test Bank',
                 'current_balance': 1000.00,
-                'currency': 'USD'
+                'currency': 'INR'
             }
         )
         print(f'Account {"created" if created else "already exists"}: {account.name}')
@@ -35,7 +35,7 @@ if __name__ == '__main__':
                 'account_type': 'savings',
                 'bank_name': 'Test Bank',
                 'current_balance': 5000.00,
-                'currency': 'USD'
+                'currency': 'INR'
             }
         )
         print(f'Account {"created" if created2 else "already exists"}: {account2.name}')

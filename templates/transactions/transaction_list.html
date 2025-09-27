@@ -20,7 +20,7 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title">Total Income</h6>
-                            <h4>${{ total_income|floatformat:2 }}</h4>
+                            <h4>₹{{ total_income|floatformat:2 }}</h4>
                         </div>
                         <i class="bi bi-arrow-up-circle display-6"></i>
                     </div>
@@ -33,7 +33,7 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title">Total Expenses</h6>
-                            <h4>${{ total_expenses|floatformat:2 }}</h4>
+                            <h4>₹{{ total_expenses|floatformat:2 }}</h4>
                         </div>
                         <i class="bi bi-arrow-down-circle display-6"></i>
                     </div>
@@ -46,7 +46,7 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title">Net Amount</h6>
-                            <h4>${{ net_amount|floatformat:2 }}</h4>
+                            <h4>₹{{ net_amount|floatformat:2 }}</h4>
                         </div>
                         <i class="bi bi-calculator display-6"></i>
                     </div>
@@ -147,7 +147,7 @@
                                     {% endif %}
                                 </td>
                                 <td class="{% if transaction.transaction_type == 'income' %}text-success{% elif transaction.transaction_type == 'expense' %}text-danger{% endif %}">
-                                    {% if transaction.transaction_type == 'income' %}+{% elif transaction.transaction_type == 'expense' %}-{% endif %}${{ transaction.amount|floatformat:2 }}
+                                    {% if transaction.transaction_type == 'income' %}+{% elif transaction.transaction_type == 'expense' %}-{% endif %}₹{{ transaction.amount|floatformat:2 }}
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">

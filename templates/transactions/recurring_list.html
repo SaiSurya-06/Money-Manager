@@ -54,7 +54,7 @@
                                     <td>
                                         <span class="badge bg-{% if recurring.transaction_type == 'income' %}success{% else %}danger{% endif %}">
                                             {% if recurring.transaction_type == 'expense' %}-{% endif %}
-                                            ${{ recurring.amount }}
+                                            ₹{{ recurring.amount }}
                                         </span>
                                     </td>
                                     <td>
