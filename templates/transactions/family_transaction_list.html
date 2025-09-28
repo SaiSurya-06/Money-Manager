@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load family_group_tags %}
+
+{% block title %}Family Transactions - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">Family Transactions</h1>
+                    {% if current_family_group %}
+                        <small class="text-muted">Viewing transactions from {{ current_family_group.name }} family members</small>
+                    {% endif %}
+                </div>
+                <div>
+                    <a href="{% url 'transactions:list' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left me-1"></i>Back to My Transactions
+                    </a>
+                </div>
+            </div>
+
+            {% if current_family_group %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Family Admin View:</strong> You are viewing transactions from all family members except your own. 
+                    Your personal transactions remain private in your regular transaction dashboard.
+                </div>
+            {% endif %}
+
+            <div class="card">
+                <div class="card-body">
+                    {% if transactions %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Description</th>
+                                        <th>Category</th>
+                                        <th>Account</th>
+                                        <th>Owner</th>
+                                        <th>Type</th>
+                                        <th class="text-end">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for transaction in transactions %}
+                                        <tr>
+                                            <td>{{ transaction.date|date:"M d, Y" }}</td>
+                                            <td>
+                                                <div class="fw-medium">{{ transaction.description|truncatechars:50 }}</div>
+                                                {% if transaction.notes %}
+                                                    <small class="text-muted">{{ transaction.notes|truncatechars:100 }}</small>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if transaction.category %}
+                                                    <span class="badge bg-secondary">{{ transaction.category.name }}</span>
+                                                {% else %}
+                                                    <span class="text-muted">Uncategorized</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ transaction.account.name }}</td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    {% if transaction.user.profile.avatar %}
+                                                        <img src="{{ transaction.user.profile.avatar.url }}" class="rounded-circle me-2" width="24" height="24" alt="Avatar">
+                                                    {% else %}
+                                                        <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center me-2" style="width: 24px; height: 24px;">
+                                                            <small class="text-white fw-bold">{{ transaction.user.first_name|first|upper }}</small>
+                                                        </div>
+                                                    {% endif %}
+                                                    <small>{{ transaction.user.display_name }}</small>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                {% if transaction.transaction_type == 'income' %}
+                                                    <span class="badge bg-success">Income</span>
+                                                {% elif transaction.transaction_type == 'expense' %}
+                                                    <span class="badge bg-danger">Expense</span>
+                                                {% else %}
+                                                    <span class="badge bg-info">Transfer</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end">
+                                                {% if transaction.transaction_type == 'income' %}
+                                                    <span class="text-success fw-bold">+₹{{ transaction.amount|floatformat:2 }}</span>
+                                                {% elif transaction.transaction_type == 'expense' %}
+                                                    <span class="text-danger fw-bold">-₹{{ transaction.amount|floatformat:2 }}</span>
+                                                {% else %}
+                                                    <span class="text-info fw-bold">₹{{ transaction.amount|floatformat:2 }}</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        {% if is_paginated %}
+                            <nav aria-label="Transaction pagination" class="mt-4">
+                                <ul class="pagination justify-content-center">
+                                    {% if page_obj.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page=1">First</a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                                        </li>
+                                    {% endif %}
+
+                                    <li class="page-item active">
+                                        <span class="page-link">
+                                            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                                        </span>
+                                    </li>
+
+                                    {% if page_obj.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last</a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-inbox display-1 text-muted mb-3"></i>
+                            <h4>No family transactions found</h4>
+                            <p class="text-muted">Family members haven't added any transactions yet, or you may not have admin permissions.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

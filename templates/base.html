@@ -1,3 +1,4 @@
+{% load family_group_tags %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -81,6 +82,19 @@
                                     </a></li>
                                 {% endfor %}
                                 <li><hr class="dropdown-divider"></li>
+                                {% if current_family_group and user|is_family_group_admin:current_family_group %}
+                                    <li><h6 class="dropdown-header">Family Admin</h6></li>
+                                    <li><a class="dropdown-item" href="{% url 'transactions:family_list' %}">
+                                        <i class="bi bi-list-check me-2"></i>Family Transactions
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="{% url 'transactions:family_accounts' %}">
+                                        <i class="bi bi-bank me-2"></i>Family Accounts
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="{% url 'portfolios:family_list' %}">
+                                        <i class="bi bi-briefcase me-2"></i>Family Portfolios
+                                    </a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                {% endif %}
                                 <li><a class="dropdown-item" href="{% url 'accounts:family_groups' %}">
                                     <i class="bi bi-gear me-2"></i>Manage Groups
                                 </a></li>

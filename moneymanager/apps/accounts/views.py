@@ -76,6 +76,9 @@ class ProfileView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['family_groups'] = self.request.user.get_active_family_groups()
+        # Ensure user has a profile
+        profile, created = UserProfile.objects.get_or_create(user=self.request.user)
+        context['profile'] = profile
         return context
 
 
@@ -135,8 +138,19 @@ def family_group_create(request):
 def family_groups_list(request):
     """List user's family groups."""
     family_groups = request.user.get_active_family_groups()
+    
+    # Add admin status for each group
+    groups_with_admin_status = []
+    for group in family_groups:
+        groups_with_admin_status.append({
+            'group': group,
+            'is_admin': request.user.is_family_group_admin(group),
+            'membership': group.familygroupmembership_set.filter(user=request.user, is_active=True).first()
+        })
+    
     return render(request, 'accounts/family_groups.html', {
-        'family_groups': family_groups
+        'family_groups': family_groups,
+        'groups_with_admin_status': groups_with_admin_status
     })
 
 
@@ -214,9 +228,14 @@ def switch_family_group(request):
 def invite_member(request, group_id):
     """Invite a member to family group."""
     family_group = get_object_or_404(FamilyGroup, id=group_id)
+    
+    # Check if this is an AJAX request
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'application/json' in request.headers.get('Accept', '')
 
     # Check if user is admin
     if not request.user.is_family_group_admin(family_group):
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': 'You must be an admin to invite members.'})
         messages.error(request, 'You must be an admin to invite members.')
         return redirect('accounts:family_group_detail', group_id=group_id)
 
@@ -232,6 +251,8 @@ def invite_member(request, group_id):
             family_group=family_group,
             is_active=True
         ).exists():
+            if is_ajax:
+                return JsonResponse({'success': False, 'error': 'User is already a member of this group.'})
             messages.warning(request, 'User is already a member of this group.')
         else:
             # Add user to family group
@@ -240,9 +261,13 @@ def invite_member(request, group_id):
                 family_group=family_group,
                 role=role
             )
+            if is_ajax:
+                return JsonResponse({'success': True, 'message': f'{invited_user.display_name} has been added to the group.'})
             messages.success(request, f'{invited_user.display_name} has been added to the group.')
 
     except User.DoesNotExist:
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': 'User with this email does not exist.'})
         messages.error(request, 'User with this email does not exist.')
 
     return redirect('accounts:family_group_detail', group_id=group_id)
@@ -254,14 +279,21 @@ def remove_member(request, group_id, user_id):
     """Remove a member from family group."""
     family_group = get_object_or_404(FamilyGroup, id=group_id)
     member_user = get_object_or_404(User, id=user_id)
+    
+    # Check if this is an AJAX request
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'application/json' in request.headers.get('Accept', '')
 
     # Check if user is admin
     if not request.user.is_family_group_admin(family_group):
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': 'You must be an admin to remove members.'})
         messages.error(request, 'You must be an admin to remove members.')
         return redirect('accounts:family_group_detail', group_id=group_id)
 
     # Prevent removing the creator
     if member_user == family_group.created_by:
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': 'Cannot remove the group creator.'})
         messages.error(request, 'Cannot remove the group creator.')
         return redirect('accounts:family_group_detail', group_id=group_id)
 
@@ -274,9 +306,13 @@ def remove_member(request, group_id, user_id):
         membership.is_active = False
         membership.save()
 
+        if is_ajax:
+            return JsonResponse({'success': True, 'message': f'{member_user.display_name} has been removed from the group.'})
         messages.success(request, f'{member_user.display_name} has been removed from the group.')
 
     except FamilyGroupMembership.DoesNotExist:
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': 'Membership not found.'})
         messages.error(request, 'Membership not found.')
 
     return redirect('accounts:family_group_detail', group_id=group_id)

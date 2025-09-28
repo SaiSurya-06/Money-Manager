@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 from django.urls import reverse_lazy
-from django.db.models import Sum
+from django.db.models import Sum, Q
 
 from .models import Portfolio, Holding, Asset, Watchlist, Transaction as PortfolioTransaction
 
@@ -20,10 +20,8 @@ class PortfolioListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = Portfolio.objects.filter(is_active=True)
-        if hasattr(self.request, 'current_family_group') and self.request.current_family_group:
-            queryset = queryset.filter(family_group=self.request.current_family_group)
-        else:
-            queryset = queryset.filter(user=self.request.user, family_group__isnull=True)
+        # Show only user's own portfolios - keep portfolios private
+        queryset = queryset.filter(user=self.request.user)
         return queryset.order_by('name')
 
 
@@ -188,3 +186,41 @@ def portfolio_analytics(request):
         'portfolios': portfolios,
     }
     return render(request, 'portfolios/analytics.html', context)
+
+
+# Family Admin Oversight Views
+class FamilyPortfolioListView(LoginRequiredMixin, ListView):
+    """List all portfolios from family members - for family group admins only."""
+    model = Portfolio
+    template_name = 'portfolios/family_portfolio_list.html'
+    context_object_name = 'portfolios'
+
+    def dispatch(self, request, *args, **kwargs):
+        # Only allow family group admins to access this view
+        if not (hasattr(request, 'current_family_group') and request.current_family_group and 
+                request.user.is_family_group_admin(request.current_family_group)):
+            from django.contrib import messages
+            from django.shortcuts import redirect
+            messages.error(request, 'You must be a family group admin to access this page.')
+            return redirect('portfolios:list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        from django.db.models import Q
+        queryset = Portfolio.objects.filter(is_active=True)
+        # Show all portfolios from family members (excluding current user's own portfolios)
+        if hasattr(self.request, 'current_family_group') and self.request.current_family_group:
+            family_members = self.request.current_family_group.members.exclude(id=self.request.user.id)
+            queryset = queryset.filter(
+                Q(family_group=self.request.current_family_group) |
+                Q(user__in=family_members, family_group__isnull=True)
+            )
+        else:
+            queryset = Portfolio.objects.none()
+        return queryset.order_by('user__first_name', 'user__last_name', 'name')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['current_family_group'] = getattr(self.request, 'current_family_group', None)
+        context['is_family_admin_view'] = True
+        return context

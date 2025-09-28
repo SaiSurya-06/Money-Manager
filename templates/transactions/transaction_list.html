@@ -1,12 +1,15 @@
 {% extends 'base.html' %}
 {% load crispy_forms_tags %}
+{% load family_group_tags %}
 
 {% block title %}Transactions - MoneyManager{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-receipt me-2"></i>Transactions</h1>
+        <h1>
+            <i class="bi bi-receipt me-2"></i>Transactions
+        </h1>
         <a href="{% url 'transactions:create' %}" class="btn btn-primary">
             <i class="bi bi-plus-circle me-1"></i>Add Transaction
         </a>
@@ -114,6 +117,9 @@
                                     <th>Description</th>
                                 <th>Category</th>
                                 <th>Account</th>
+                                {% if current_family_group and user|is_family_group_admin:current_family_group %}
+                                    <th>Owner</th>
+                                {% endif %}
                                 <th>Type</th>
                                 <th>Amount</th>
                                 <th>Actions</th>
@@ -137,6 +143,13 @@
                                     {% endif %}
                                 </td>
                                 <td>{{ transaction.account.name }}</td>
+                                {% if current_family_group and user|is_family_group_admin:current_family_group %}
+                                <td>
+                                    <span class="{{ transaction|get_owner_badge_class:user }}">
+                                        {{ transaction|get_owner_name }}
+                                    </span>
+                                </td>
+                                {% endif %}
                                 <td>
                                     {% if transaction.transaction_type == 'income' %}
                                         <span class="badge bg-success">Income</span>

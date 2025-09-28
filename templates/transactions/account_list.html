@@ -1,12 +1,15 @@
 {% extends 'base.html' %}
 {% load crispy_forms_tags %}
+{% load family_group_tags %}
 
 {% block title %}Accounts - MoneyManager{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-bank me-2"></i>Accounts</h1>
+        <h1>
+            <i class="bi bi-bank me-2"></i>Accounts
+        </h1>
         <a href="{% url 'transactions:account_create' %}" class="btn btn-primary">
             <i class="bi bi-plus-circle me-1"></i>Add Account
         </a>
@@ -57,7 +60,14 @@
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
                                     <h6 class="card-title">{{ account.name }}</h6>
-                                    <span class="badge bg-secondary">{{ account.get_account_type_display }}</span>
+                                    <div class="d-flex flex-column align-items-end">
+                                        <span class="badge bg-secondary mb-1">{{ account.get_account_type_display }}</span>
+                                        {% if current_family_group and user|is_family_group_admin:current_family_group %}
+                                            <span class="{{ account|get_owner_badge_class:user }}">
+                                                {{ account|get_owner_name }}
+                                            </span>
+                                        {% endif %}
+                                    </div>
                                 </div>
                                 <p class="text-muted small mb-2">{{ account.bank_name }}</p>
                                 <h4 class="{% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">

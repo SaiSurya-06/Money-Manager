@@ -37,4 +37,7 @@ urlpatterns = [
     
     # Analytics
     path('analytics/', views.portfolio_analytics, name='analytics'),
+    
+    # Family Admin Oversight URLs
+    path('family/', views.FamilyPortfolioListView.as_view(), name='family_list'),
 ]

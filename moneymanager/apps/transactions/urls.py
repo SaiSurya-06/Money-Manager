@@ -26,4 +26,8 @@ urlpatterns = [
     path('bulk-upload/', views.bulk_upload_transactions, name='bulk_upload'),
     path('bulk-delete/', views.bulk_delete_transactions, name='bulk_delete'),
     path('download-template/<str:format>/', views.download_template, name='download_template'),
+    
+    # Family Admin Oversight URLs
+    path('family/', views.FamilyTransactionListView.as_view(), name='family_list'),
+    path('family/accounts/', views.FamilyAccountListView.as_view(), name='family_accounts'),
 ]

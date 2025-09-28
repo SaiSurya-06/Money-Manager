@@ -38,11 +38,8 @@ class TransactionListView(LoginRequiredMixin, ListView):
             'category', 'account', 'user'
         )
 
-        # Filter by family group or user
-        if hasattr(self.request, 'current_family_group') and self.request.current_family_group:
-            queryset = queryset.filter(family_group=self.request.current_family_group)
-        else:
-            queryset = queryset.filter(user=self.request.user, family_group__isnull=True)
+        # Filter by user only - keep personal transactions private
+        queryset = queryset.filter(user=self.request.user)
 
         # Apply filters
         form = TransactionFilterForm(
@@ -200,10 +197,8 @@ class AccountListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = Account.objects.filter(is_active=True)
-        if hasattr(self.request, 'current_family_group') and self.request.current_family_group:
-            queryset = queryset.filter(family_group=self.request.current_family_group)
-        else:
-            queryset = queryset.filter(owner=self.request.user, family_group__isnull=True)
+        # Show only user's own accounts - keep accounts private
+        queryset = queryset.filter(owner=self.request.user)
         return queryset.order_by('name')
 
     def get_context_data(self, **kwargs):
@@ -532,6 +527,80 @@ def download_template(request, format):
     else:
         messages.error(request, 'Invalid template format requested.')
         return redirect('transactions:bulk_upload')
+
+
+# Family Admin Oversight Views
+class FamilyTransactionListView(LoginRequiredMixin, ListView):
+    """List all transactions from family members - for family group admins only."""
+    model = Transaction
+    template_name = 'transactions/family_transaction_list.html'
+    context_object_name = 'transactions'
+    paginate_by = 25
+
+    def dispatch(self, request, *args, **kwargs):
+        # Only allow family group admins to access this view
+        if not (hasattr(request, 'current_family_group') and request.current_family_group and 
+                request.user.is_family_group_admin(request.current_family_group)):
+            messages.error(request, 'You must be a family group admin to access this page.')
+            return redirect('transactions:list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        queryset = Transaction.objects.filter(is_active=True).select_related(
+            'category', 'account', 'user'
+        )
+
+        # Show all transactions from family members (excluding current user's own transactions)
+        if hasattr(self.request, 'current_family_group') and self.request.current_family_group:
+            family_members = self.request.current_family_group.members.exclude(id=self.request.user.id)
+            queryset = queryset.filter(
+                Q(family_group=self.request.current_family_group) |
+                Q(user__in=family_members, family_group__isnull=True)
+            )
+        else:
+            queryset = Transaction.objects.none()
+
+        return queryset.order_by('-date', '-created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['current_family_group'] = getattr(self.request, 'current_family_group', None)
+        context['is_family_admin_view'] = True
+        return context
+
+
+class FamilyAccountListView(LoginRequiredMixin, ListView):
+    """List all accounts from family members - for family group admins only."""
+    model = Account
+    template_name = 'transactions/family_account_list.html'
+    context_object_name = 'accounts'
+
+    def dispatch(self, request, *args, **kwargs):
+        # Only allow family group admins to access this view
+        if not (hasattr(request, 'current_family_group') and request.current_family_group and 
+                request.user.is_family_group_admin(request.current_family_group)):
+            messages.error(request, 'You must be a family group admin to access this page.')
+            return redirect('transactions:account_list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        queryset = Account.objects.filter(is_active=True)
+        # Show all accounts from family members (excluding current user's own accounts)
+        if hasattr(self.request, 'current_family_group') and self.request.current_family_group:
+            family_members = self.request.current_family_group.members.exclude(id=self.request.user.id)
+            queryset = queryset.filter(
+                Q(family_group=self.request.current_family_group) |
+                Q(owner__in=family_members, family_group__isnull=True)
+            )
+        else:
+            queryset = Account.objects.none()
+        return queryset.order_by('owner__first_name', 'owner__last_name', 'name')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['current_family_group'] = getattr(self.request, 'current_family_group', None)
+        context['is_family_admin_view'] = True
+        return context
 
 
 @login_required

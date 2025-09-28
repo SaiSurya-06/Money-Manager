@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load family_group_tags %}
+
+{% block title %}Family Accounts - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">Family Accounts</h1>
+                    {% if current_family_group %}
+                        <small class="text-muted">Viewing accounts from {{ current_family_group.name }} family members</small>
+                    {% endif %}
+                </div>
+                <div>
+                    <a href="{% url 'transactions:accounts' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left me-1"></i>Back to My Accounts
+                    </a>
+                </div>
+            </div>
+
+            {% if current_family_group %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Family Admin View:</strong> You are viewing accounts from all family members except your own. 
+                    Your personal accounts remain private in your regular accounts dashboard.
+                </div>
+            {% endif %}
+
+            <div class="card">
+                <div class="card-body">
+                    {% if accounts %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Account Name</th>
+                                        <th>Owner</th>
+                                        <th>Type</th>
+                                        <th>Bank/Institution</th>
+                                        <th class="text-end">Balance</th>
+                                        <th>Currency</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for account in accounts %}
+                                        <tr>
+                                            <td>
+                                                <div class="fw-medium">{{ account.name }}</div>
+                                                {% if account.description %}
+                                                    <small class="text-muted">{{ account.description|truncatechars:50 }}</small>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    {% if account.owner.profile.avatar %}
+                                                        <img src="{{ account.owner.profile.avatar.url }}" class="rounded-circle me-2" width="32" height="32" alt="Avatar">
+                                                    {% else %}
+                                                        <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
+                                                            <small class="text-white fw-bold">{{ account.owner.first_name|first|upper }}</small>
+                                                        </div>
+                                                    {% endif %}
+                                                    <div>
+                                                        <div class="fw-medium">{{ account.owner.display_name }}</div>
+                                                        <small class="text-muted">{{ account.owner.email }}</small>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info">{{ account.account_type|capfirst }}</span>
+                                            </td>
+                                            <td>
+                                                {% if account.bank_name %}
+                                                    {{ account.bank_name }}
+                                                {% else %}
+                                                    <span class="text-muted">Not specified</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end">
+                                                {% if account.balance >= 0 %}
+                                                    <span class="text-success fw-bold">₹{{ account.balance|floatformat:2 }}</span>
+                                                {% else %}
+                                                    <span class="text-danger fw-bold">₹{{ account.balance|floatformat:2 }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ account.currency }}</td>
+                                            <td>
+                                                {% if account.is_active %}
+                                                    <span class="badge bg-success">Active</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">Inactive</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr class="table-light">
+                                        <th colspan="4">Total Balance</th>
+                                        <th class="text-end">
+                                            {% with total_balance=accounts|sum_account_balances %}
+                                                {% if total_balance >= 0 %}
+                                                    <span class="text-success fw-bold">₹{{ total_balance|floatformat:2 }}</span>
+                                                {% else %}
+                                                    <span class="text-danger fw-bold">₹{{ total_balance|floatformat:2 }}</span>
+                                                {% endif %}
+                                            {% endwith %}
+                                        </th>
+                                        <th colspan="2"></th>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-bank display-1 text-muted mb-3"></i>
+                            <h4>No family accounts found</h4>
+                            <p class="text-muted">Family members haven't added any accounts yet, or you may not have admin permissions.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

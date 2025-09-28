@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ family_group.name }} - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h3><i class="bi bi-people me-2"></i>{{ family_group.name }}</h3>
+                    <p class="text-muted mb-0">
+                        Created by {{ family_group.created_by.get_full_name }} on {{ family_group.created_at|date:"M d, Y" }}
+                    </p>
+                </div>
+                <div>
+                    {% if is_admin %}
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#inviteModal">
+                            <i class="bi bi-person-plus me-1"></i>Invite Member
+                        </button>
+                    {% endif %}
+                    <a href="{% url 'accounts:family_groups' %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Back
+                    </a>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Members List -->
+                <div class="col-lg-8">
+                    <div class="card shadow-sm">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-people me-2"></i>Members ({{ memberships.count }})</h6>
+                        </div>
+                        <div class="card-body">
+                            {% for membership in memberships %}
+                                <div class="d-flex align-items-center justify-content-between border-bottom py-3 {% if not forloop.last %}{% else %}border-0 pb-0{% endif %}">
+                                    <div class="d-flex align-items-center">
+                                        <div class="me-3">
+                                            {% if membership.user.avatar %}
+                                                <img src="{{ membership.user.avatar.url }}" alt="Avatar" 
+                                                     class="rounded-circle" width="40" height="40" style="object-fit: cover;">
+                                            {% else %}
+                                                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" 
+                                                     style="width: 40px; height: 40px; font-size: 16px;">
+                                                    {{ membership.user.first_name|first }}{{ membership.user.last_name|first }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-1">{{ membership.user.get_full_name }}</h6>
+                                            <small class="text-muted">{{ membership.user.email }}</small>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="badge bg-{% if membership.role == 'admin' %}warning text-dark{% else %}secondary{% endif %}">
+                                            {% if membership.role == 'admin' %}
+                                                <i class="bi bi-star-fill me-1"></i>Admin
+                                            {% else %}
+                                                {{ membership.get_role_display }}
+                                            {% endif %}
+                                        </span>
+                                        {% if is_admin and membership.user != user %}
+                                            <button class="btn btn-sm btn-outline-danger" 
+                                                    onclick="removeMember('{{ membership.user.id }}', '{{ membership.user.get_full_name }}')">
+                                                <i class="bi bi-person-dash"></i>
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group Info -->
+                <div class="col-lg-4">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Group Information</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <strong>Created:</strong><br>
+                                <small class="text-muted">{{ family_group.created_at|date:"F d, Y \a\t g:i A" }}</small>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Created by:</strong><br>
+                                <small class="text-muted">{{ family_group.created_by.get_full_name }}</small>
+                            </div>
+                            <div class="mb-0">
+                                <strong>Total Members:</strong><br>
+                                <small class="text-muted">{{ memberships.count }} member{{ memberships.count|pluralize }}</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Your Role -->
+                    <div class="card shadow-sm">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-person-badge me-2"></i>Your Role</h6>
+                        </div>
+                        <div class="card-body">
+                            {% if is_admin %}
+                                <span class="badge bg-warning text-dark fs-6">
+                                    <i class="bi bi-star-fill me-1"></i>Administrator
+                                </span>
+                                <p class="mt-2 mb-0">
+                                    <small class="text-muted">You can invite and remove members, manage group settings.</small>
+                                </p>
+                            {% else %}
+                                <span class="badge bg-secondary fs-6">Member</span>
+                                <p class="mt-2 mb-0">
+                                    <small class="text-muted">You can view and participate in family financial activities.</small>
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Invite Member Modal -->
+{% if is_admin %}
+<div class="modal fade" id="inviteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Invite Member</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="inviteForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                        <div class="form-text">Enter the email address of the person you want to invite.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role</label>
+                        <select class="form-select" id="role" name="role">
+                            <option value="member">Member</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="sendInvite()">Send Invite</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function sendInvite() {
+    const form = document.getElementById('inviteForm');
+    const formData = new FormData(form);
+    
+    fetch('{% url "accounts:invite_member" family_group.id %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to send invite'));
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error.message);
+    });
+}
+
+function removeMember(userId, userName) {
+    if (confirm(`Are you sure you want to remove ${userName} from this family group?`)) {
+        fetch(`/accounts/family-groups/{{ family_group.id }}/remove/${userId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Failed to remove member'));
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+    }
+}
+</script>
+{% endblock %}
