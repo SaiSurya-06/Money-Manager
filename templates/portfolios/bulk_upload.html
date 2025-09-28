@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Bulk Upload Holdings - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="bi bi-upload me-2"></i>Bulk Upload Holdings</h4>
+                    <p class="text-muted mb-0">Upload holdings from a CSV file to quickly populate your portfolio</p>
+                </div>
+                <div class="card-body">
+                    <!-- CSV Format Information -->
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-info-circle me-2"></i>CSV Format Requirements</h6>
+                        <p class="mb-2">Your CSV file should have the following columns (header row required):</p>
+                        <ul class="mb-2">
+                            <li><strong>symbol</strong> - Asset symbol (e.g., AAPL, RELIANCE.NS)</li>
+                            <li><strong>name</strong> - Asset name (optional)</li>
+                            <li><strong>quantity</strong> - Number of shares/units owned</li>
+                            <li><strong>average_cost</strong> - Average price per share/unit</li>
+                            <li><strong>asset_type</strong> - Type: stock, mutual_fund, etf, bond (optional, defaults to stock)</li>
+                            <li><strong>current_price</strong> - Current market price (optional)</li>
+                        </ul>
+                        <p class="mb-0">
+                            <a href="#" onclick="downloadSample()" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-download me-1"></i>Download Sample CSV
+                            </a>
+                        </p>
+                    </div>
+
+                    <!-- Upload Form -->
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        {{ form|crispy }}
+                        
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'portfolios:list' %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left me-1"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-upload me-1"></i>Upload Holdings
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Upload Instructions -->
+                    <div class="mt-4">
+                        <h6>Upload Instructions:</h6>
+                        <ol>
+                            <li>Select the portfolio where you want to add the holdings</li>
+                            <li>Choose your CSV file (must be properly formatted)</li>
+                            <li>Click "Upload Holdings" to process the file</li>
+                            <li>Review any error messages and correct your CSV if needed</li>
+                            <li>Successfully imported holdings will appear in your portfolio</li>
+                        </ol>
+                    </div>
+
+                    <!-- Error Handling -->
+                    <div class="mt-3">
+                        <h6>Common Issues:</h6>
+                        <ul>
+                            <li>Make sure your CSV file has a header row with the correct column names</li>
+                            <li>Use decimal numbers for quantity and prices (e.g., 100.50, not 100,50)</li>
+                            <li>Asset symbols should be unique within the same portfolio</li>
+                            <li>If an asset with the same symbol already exists, it will be updated</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function downloadSample() {
+    // Create sample CSV content
+    const csvContent = `symbol,name,quantity,average_cost,asset_type,current_price
+AAPL,Apple Inc.,10,150.00,stock,155.50
+MSFT,Microsoft Corporation,5,250.00,stock,260.75
+RELIANCE.NS,Reliance Industries,20,2400.00,stock,2450.25
+HDFCMFG,HDFC AMC Fund,100,15.50,mutual_fund,16.25
+GOLDBEES,Gold BeES,50,45.00,etf,46.30`;
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sample_holdings.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
+// File validation
+document.querySelector('input[type="file"]').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const fileName = file.name.toLowerCase();
+        if (!fileName.endsWith('.csv')) {
+            alert('Please select a CSV file.');
+            this.value = '';
+            return;
+        }
+        
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            alert('File size should not exceed 5MB.');
+            this.value = '';
+            return;
+        }
+    }
+});
+</script>
+{% endblock %}

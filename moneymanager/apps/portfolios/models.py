@@ -271,6 +271,221 @@ class Watchlist(TimeStampedModel):
         return self.name
 
 
+class SIP(TimeStampedModel):
+    """Systematic Investment Plan - Monthly recurring investments."""
+    FREQUENCY_CHOICES = [
+        ('monthly', 'Monthly'),
+        ('quarterly', 'Quarterly'),
+        ('semi_annual', 'Semi-Annual'),
+        ('annual', 'Annual'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('paused', 'Paused'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    portfolio = models.ForeignKey(Portfolio, on_delete=models.CASCADE, related_name='sips')
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name='sips')
+    
+    # SIP Configuration
+    name = models.CharField(max_length=200, help_text="Name for this SIP")
+    amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('100'))])
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='monthly')
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True, help_text="Leave blank for indefinite SIP")
+    
+    # SIP Status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    next_investment_date = models.DateField()
+    
+    # Investment Tracking
+    total_invested = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    total_units = models.DecimalField(max_digits=15, decimal_places=6, default=0)
+    current_value = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    total_returns = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    returns_percentage = models.DecimalField(max_digits=8, decimal_places=4, default=0)
+    
+    # Auto-investment settings
+    auto_invest = models.BooleanField(default=False, help_text="Automatically create investments on due dates")
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sips')
+
+    class Meta:
+        db_table = 'portfolios_sip'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'next_investment_date']),
+            models.Index(fields=['user', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} - ₹{self.amount} {self.frequency}"
+
+    def calculate_returns(self):
+        """Calculate current returns for this SIP."""
+        from decimal import Decimal
+        
+        if self.total_units > 0:
+            # Convert to Decimal for calculation
+            current_price = Decimal(str(self.asset.current_price))
+            self.current_value = self.total_units * current_price
+            self.total_returns = self.current_value - self.total_invested
+            
+            if self.total_invested > 0:
+                self.returns_percentage = (self.total_returns / self.total_invested) * 100
+            else:
+                self.returns_percentage = 0
+                
+            self.save(update_fields=['current_value', 'total_returns', 'returns_percentage'])
+
+    def get_next_investment_date(self):
+        """Calculate next investment date based on frequency."""
+        from dateutil.relativedelta import relativedelta
+        
+        if self.frequency == 'monthly':
+            return self.next_investment_date + relativedelta(months=1)
+        elif self.frequency == 'quarterly':
+            return self.next_investment_date + relativedelta(months=3)
+        elif self.frequency == 'semi_annual':
+            return self.next_investment_date + relativedelta(months=6)
+        elif self.frequency == 'annual':
+            return self.next_investment_date + relativedelta(years=1)
+        return self.next_investment_date
+
+    def update_totals(self):
+        """Update total invested and units from all investments."""
+        investments = self.investments.all()
+        self.total_invested = sum(inv.amount for inv in investments)
+        self.total_units = sum(inv.units_allocated for inv in investments)
+        self.calculate_returns()
+
+    @property
+    def is_due_for_investment(self):
+        """Check if SIP is due for next investment."""
+        from django.utils import timezone
+        return (self.status == 'active' and 
+                self.next_investment_date <= timezone.now().date())
+
+    @property
+    def xirr(self):
+        """Calculate XIRR (Extended Internal Rate of Return) for this SIP."""
+        # This would require implementing XIRR calculation
+        # For now, return annualized returns as approximation
+        if self.total_invested > 0:
+            days_invested = (timezone.now().date() - self.start_date).days
+            if days_invested > 0:
+                # Convert Decimal to float for power operation
+                current_value_float = float(self.current_value)
+                total_invested_float = float(self.total_invested)
+                annualized_return = ((current_value_float / total_invested_float) ** (365.0 / days_invested) - 1) * 100
+                return round(annualized_return, 2)
+        return 0
+
+    def save(self, *args, **kwargs):
+        """Auto-calculate next_investment_date if not set."""
+        from dateutil.relativedelta import relativedelta
+        from datetime import datetime, date
+        
+        if not self.next_investment_date and self.start_date:
+            # Ensure start_date is a date object
+            start_date = self.start_date
+            if isinstance(start_date, str):
+                try:
+                    start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+                except ValueError:
+                    # If string format is different, try other formats
+                    for fmt in ['%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d']:
+                        try:
+                            start_date = datetime.strptime(start_date, fmt).date()
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        # If all formats fail, use today as fallback
+                        start_date = date.today()
+            
+            # Set next investment date based on frequency and start date
+            if self.frequency == 'monthly':
+                self.next_investment_date = start_date + relativedelta(months=1)
+            elif self.frequency == 'quarterly':
+                self.next_investment_date = start_date + relativedelta(months=3)
+            elif self.frequency == 'semi_annual':
+                self.next_investment_date = start_date + relativedelta(months=6)
+            elif self.frequency == 'annual':
+                self.next_investment_date = start_date + relativedelta(years=1)
+            else:
+                # Default to monthly
+                self.next_investment_date = start_date + relativedelta(months=1)
+        
+        super().save(*args, **kwargs)
+
+
+class SIPInvestment(TimeStampedModel):
+    """Individual SIP investments/installments."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sip = models.ForeignKey(SIP, on_delete=models.CASCADE, related_name='investments')
+    
+    # Investment Details
+    date = models.DateField()
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    nav_price = models.DecimalField(max_digits=12, decimal_places=4, help_text="NAV/Price at time of investment")
+    units_allocated = models.DecimalField(max_digits=15, decimal_places=6)
+    
+    # Current Values
+    current_nav = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    current_value = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    returns = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    returns_percentage = models.DecimalField(max_digits=8, decimal_places=4, default=0)
+    
+    # Transaction Info
+    transaction_id = models.CharField(max_length=100, blank=True)
+    fees = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'portfolios_sip_investment'
+        ordering = ['-date']
+        indexes = [
+            models.Index(fields=['sip', 'date']),
+        ]
+
+    def __str__(self):
+        return f"{self.sip.name} - {self.date} - ₹{self.amount}"
+
+    def calculate_current_value(self):
+        """Update current value based on current NAV."""
+        from decimal import Decimal
+        
+        # Convert all values to Decimal for calculation
+        current_price = Decimal(str(self.sip.asset.current_price))
+        units = Decimal(str(self.units_allocated))
+        
+        self.current_nav = current_price
+        self.current_value = units * current_price
+        self.returns = self.current_value - self.amount
+        
+        if self.amount > 0:
+            self.returns_percentage = (self.returns / self.amount) * 100
+        else:
+            self.returns_percentage = 0
+            
+        self.save(update_fields=['current_nav', 'current_value', 'returns', 'returns_percentage'])
+
+    def save(self, *args, **kwargs):
+        # Calculate units if not provided
+        if not self.units_allocated and self.nav_price > 0:
+            self.units_allocated = self.amount / self.nav_price
+            
+        super().save(*args, **kwargs)
+        
+        # Update SIP totals
+        self.sip.update_totals()
+
+
 class PriceHistory(TimeStampedModel):
     """Historical price data for assets."""
     asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name='price_history')

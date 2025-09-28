@@ -1,0 +1,245 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Add Holding - {{ portfolio.name }} - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-plus-circle me-2"></i>Add New Holding to {{ portfolio.name }}</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Asset Search Section -->
+                    <div class="mb-4">
+                        <h6 class="text-muted mb-3">Search for Stock or Mutual Fund</h6>
+                        <form id="asset-search-form" class="mb-3">
+                            {% csrf_token %}
+                            {% crispy asset_search_form %}
+                        </form>
+                        
+                        <div id="search-results" class="alert alert-info d-none">
+                            <div id="search-content"></div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <small class="text-muted">Can't find your asset? <a href="#manual-form" onclick="showManualForm()">Add it manually</a></small>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Manual Asset Addition -->
+                    <div id="manual-asset-form" class="mb-4" style="display: none;">
+                        <h6 class="text-muted mb-3">Manually Add Asset</h6>
+                        <form id="manual-asset-creation" class="mb-3">
+                            {% csrf_token %}
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label">Symbol</label>
+                                    <input type="text" name="symbol" class="form-control" placeholder="e.g., RELIANCE, TCS" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Asset Type</label>
+                                    <select name="asset_type" class="form-select" required>
+                                        <option value="">Select Type</option>
+                                        <option value="stock">Stock</option>
+                                        <option value="mutual_fund">Mutual Fund</option>
+                                        <option value="etf">ETF</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-8">
+                                    <label class="form-label">Full Name</label>
+                                    <input type="text" name="name" class="form-control" placeholder="e.g., Reliance Industries Limited" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Current Price (₹)</label>
+                                    <input type="number" name="current_price" class="form-control" step="0.01" placeholder="0.00" required>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <button type="submit" class="btn btn-secondary">Add Asset</button>
+                                <button type="button" onclick="hideManualForm()" class="btn btn-outline-secondary">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Holding Form -->
+                    <form method="post" id="holding-form">
+                        {% csrf_token %}
+                        <h6 class="text-muted mb-3">Enter Holding Details</h6>
+                        {% crispy form %}
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Portfolio Summary -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6><i class="bi bi-info-circle me-2"></i>Portfolio Summary</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Portfolio:</strong> {{ portfolio.name }}</p>
+                    <p><strong>Current Holdings:</strong> {{ portfolio.holdings.count }}</p>
+                    <p><strong>Total Value:</strong> ₹{{ portfolio.total_value|floatformat:2 }}</p>
+                    <p><strong>Total P&L:</strong> 
+                        <span class="{% if portfolio.total_gain_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if portfolio.total_gain_loss >= 0 %}+{% endif %}₹{{ portfolio.total_gain_loss|floatformat:2 }}
+                        </span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Tips -->
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="bi bi-lightbulb me-2"></i>Tips</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled small">
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Enter the average price you paid per unit</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>For SIP investments, calculate your average cost</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>System will automatically calculate current P&L</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>You can add transactions later for detailed tracking</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{% url 'portfolios:detail' portfolio.pk %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Portfolio
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchForm = document.getElementById('asset-search-form');
+    const searchResults = document.getElementById('search-results');
+    const searchContent = document.getElementById('search-content');
+    const assetSelect = document.querySelector('select[name="asset"]');
+    const manualAssetForm = document.getElementById('manual-asset-creation');
+
+    // Asset search functionality
+    searchForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(searchForm);
+        
+        fetch('{% url "portfolios:asset_search" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const asset = data.asset;
+                searchResults.classList.remove('d-none', 'alert-info', 'alert-danger');
+                searchResults.classList.add('alert-success');
+                
+                searchContent.innerHTML = `
+                    <h6><i class="bi bi-check-circle me-2"></i>Asset Found!</h6>
+                    <p><strong>${asset.symbol}</strong> - ${asset.name}</p>
+                    <p>Type: ${asset.asset_type} | Current Price: ₹${asset.current_price}</p>
+                    <button type="button" class="btn btn-sm btn-success" onclick="selectAsset('${asset.id}', '${asset.symbol}', '${asset.name}')">
+                        Use This Asset
+                    </button>
+                `;
+            } else {
+                searchResults.classList.remove('d-none', 'alert-success', 'alert-info');
+                searchResults.classList.add('alert-danger');
+                searchContent.innerHTML = `
+                    <h6><i class="bi bi-exclamation-triangle me-2"></i>Asset Not Found</h6>
+                    <p>${data.error}</p>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            searchResults.classList.remove('d-none', 'alert-success', 'alert-info');
+            searchResults.classList.add('alert-danger');
+            searchContent.innerHTML = `
+                <h6><i class="bi bi-exclamation-triangle me-2"></i>Search Error</h6>
+                <p>An error occurred while searching. Please try again.</p>
+            `;
+        });
+    });
+
+    // Manual asset creation
+    manualAssetForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(manualAssetForm);
+        
+        fetch('{% url "portfolios:asset_create" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Add the new asset to the select dropdown
+                const newOption = new Option(data.asset.symbol + ' - ' + data.asset.name, data.asset.id);
+                assetSelect.add(newOption);
+                assetSelect.value = data.asset.id;
+                
+                // Hide manual form and show success message
+                hideManualForm();
+                searchResults.classList.remove('d-none', 'alert-danger', 'alert-info');
+                searchResults.classList.add('alert-success');
+                searchContent.innerHTML = `
+                    <h6><i class="bi bi-check-circle me-2"></i>Asset Created!</h6>
+                    <p>Asset ${data.asset.symbol} has been added to the system and selected.</p>
+                `;
+            } else {
+                alert('Error creating asset: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while creating the asset.');
+        });
+    });
+});
+
+function selectAsset(assetId, symbol, name) {
+    const assetSelect = document.querySelector('select[name="asset"]');
+    
+    // Check if option exists, if not create it
+    let option = assetSelect.querySelector(`option[value="${assetId}"]`);
+    if (!option) {
+        option = new Option(symbol + ' - ' + name, assetId);
+        assetSelect.add(option);
+    }
+    
+    assetSelect.value = assetId;
+    
+    // Scroll to the holding form
+    document.getElementById('holding-form').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showManualForm() {
+    document.getElementById('manual-asset-form').style.display = 'block';
+}
+
+function hideManualForm() {
+    document.getElementById('manual-asset-form').style.display = 'none';
+}
+</script>
+{% endblock %}

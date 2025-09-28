@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% load portfolio_extras %}
+{% load portfolio_extras %}
+
+{% block title %}Record SIP Investment - Money Manager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-plus-circle me-2"></i>
+                        Record SIP Investment
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- SIP Information -->
+                    <div class="alert alert-info">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-piggy-bank me-2"></i>SIP Details:</h6>
+                                <p class="mb-0">
+                                    <strong>{{ sip.name }}</strong><br>
+                                    <small class="text-muted">{{ sip.asset.name }}</small>
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-calendar me-2"></i>Investment Schedule:</h6>
+                                <p class="mb-0">
+                                    <strong>₹{{ sip.amount }}</strong> {{ sip.get_frequency_display }}<br>
+                                    <small class="text-muted">Due: {{ sip.next_investment_date }}</small>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Current NAV Information -->
+                    {% if sip.asset.current_price %}
+                    <div class="alert alert-light">
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <h6>Current NAV</h6>
+                                <h4 class="text-primary">₹{{ sip.asset.current_price }}</h4>
+                                {% if sip.asset.price_updated_at %}
+                                <small class="text-muted">
+                                    Updated: {{ sip.asset.price_updated_at|date:"M d, Y H:i" }}
+                                </small>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4">
+                                <h6>Units at Current NAV</h6>
+                                <h4 class="text-info">{{ sip.amount|div:sip.asset.current_price|floatformat:3 }}</h4>
+                                <small class="text-muted">Approx. units</small>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>Total Investment</h6>
+                                <h4 class="text-success">₹{{ sip.total_invested|floatformat:0 }}</h4>
+                                <small class="text-muted">{{ sip.total_units|floatformat:3 }} units</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ form|crispy }}
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'portfolios:sip_detail' sip.pk %}" class="btn btn-secondary me-2">
+                                Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Record Investment
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Investment Tips -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-lightbulb me-2"></i>
+                        Investment Recording Tips
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-calendar-check text-success me-2"></i>Date</h6>
+                            <p>Enter the actual investment date when the amount was deducted from your account.</p>
+                            
+                            <h6><i class="bi bi-currency-rupee text-success me-2"></i>Amount</h6>
+                            <p>Enter the exact amount invested, which may differ from your SIP amount due to rounding.</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-graph-up text-success me-2"></i>NAV Price</h6>
+                            <p>Enter the NAV (Net Asset Value) at which units were allocated to you.</p>
+                            
+                            <h6><i class="bi bi-receipt text-success me-2"></i>Transaction ID</h6>
+                            <p>Optional: Enter the transaction reference from your bank or fund house.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> Units will be calculated automatically as Amount ÷ NAV Price. 
+                        This investment will update your SIP's total returns and performance metrics.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const amountField = document.getElementById('id_amount');
+    const navField = document.getElementById('id_nav_price');
+    
+    // Calculate and display units when amount or NAV changes
+    function calculateUnits() {
+        const amount = parseFloat(amountField.value) || 0;
+        const nav = parseFloat(navField.value) || 0;
+        
+        if (amount > 0 && nav > 0) {
+            const units = (amount / nav).toFixed(6);
+            
+            // Find or create units display element
+            let unitsDisplay = document.getElementById('units-display');
+            if (!unitsDisplay) {
+                unitsDisplay = document.createElement('div');
+                unitsDisplay.id = 'units-display';
+                unitsDisplay.className = 'alert alert-info mt-2';
+                navField.parentNode.appendChild(unitsDisplay);
+            }
+            
+            unitsDisplay.innerHTML = `
+                <i class="bi bi-calculator me-2"></i>
+                <strong>Units to be allocated:</strong> ${units} units
+            `;
+        }
+    }
+    
+    if (amountField && navField) {
+        amountField.addEventListener('input', calculateUnits);
+        navField.addEventListener('input', calculateUnits);
+        
+        // Calculate on page load if values exist
+        calculateUnits();
+    }
+});
+</script>
+{% endblock %}

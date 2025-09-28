@@ -1,0 +1,244 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}My SIPs - Money Manager{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">My SIPs</h1>
+            <p class="text-muted">Manage your Systematic Investment Plans</p>
+        </div>
+        <div>
+            <a href="{% url 'portfolios:sip_dashboard' %}" class="btn btn-outline-primary me-2">
+                <i class="bi bi-speedometer me-1"></i>Dashboard
+            </a>
+            <a href="{% url 'portfolios:sip_create' %}" class="btn btn-success">
+                <i class="bi bi-plus-circle me-1"></i>New SIP
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <i class="bi bi-piggy-bank fs-2 mb-2"></i>
+                    <h5>Total Invested</h5>
+                    <h3>₹{{ total_invested|floatformat:0 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <i class="bi bi-graph-up fs-2 mb-2"></i>
+                    <h5>Current Value</h5>
+                    <h3>₹{{ current_value|floatformat:0 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-{% if total_returns >= 0 %}success{% else %}danger{% endif %} text-white">
+                <div class="card-body text-center">
+                    <i class="bi bi-{% if total_returns >= 0 %}trending-up{% else %}trending-down{% endif %} fs-2 mb-2"></i>
+                    <h5>Total Returns</h5>
+                    <h3>₹{{ total_returns|floatformat:0 }}</h3>
+                    <small>({{ returns_percentage|floatformat:2 }}%)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-secondary text-white">
+                <div class="card-body text-center">
+                    <i class="bi bi-clock fs-2 mb-2"></i>
+                    <h5>Active SIPs</h5>
+                    <h3>{{ active_sips }}</h3>
+                    <small>{{ total_sips }} total</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SIPs Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-list-ul me-2"></i>
+                All SIPs
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if sips %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>SIP Name</th>
+                            <th>Fund</th>
+                            <th>Amount</th>
+                            <th>Frequency</th>
+                            <th class="text-center">Invested</th>
+                            <th class="text-center">Current Value</th>
+                            <th class="text-center">Returns</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-center">Next Investment</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sip in sips %}
+                        <tr {% if sip.is_due_for_investment %}class="table-warning"{% endif %}>
+                            <td>
+                                <strong>{{ sip.name }}</strong>
+                                {% if sip.is_due_for_investment %}
+                                    <span class="badge bg-danger ms-1">Due!</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small class="text-muted">{{ sip.asset.symbol }}</small><br>
+                                {{ sip.asset.name|truncatechars:30 }}
+                            </td>
+                            <td>
+                                <strong>₹{{ sip.amount|floatformat:0 }}</strong>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">{{ sip.get_frequency_display }}</span>
+                            </td>
+                            <td class="text-center">
+                                ₹{{ sip.total_invested|floatformat:0 }}
+                            </td>
+                            <td class="text-center">
+                                ₹{{ sip.current_value|floatformat:0 }}
+                            </td>
+                            <td class="text-center">
+                                <span class="text-{% if sip.total_returns >= 0 %}success{% else %}danger{% endif %}">
+                                    ₹{{ sip.total_returns|floatformat:0 }}<br>
+                                    <small>({{ sip.returns_percentage|floatformat:2 }}%)</small>
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-{% if sip.status == 'active' %}success{% elif sip.status == 'paused' %}warning{% else %}secondary{% endif %}">
+                                    {{ sip.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                {{ sip.next_investment_date }}
+                                {% if sip.is_due_for_investment %}
+                                    <br><small class="text-danger">Overdue</small>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'portfolios:sip_detail' sip.pk %}" 
+                                       class="btn btn-sm btn-outline-primary" 
+                                       title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    {% if sip.is_due_for_investment %}
+                                    <a href="{% url 'portfolios:sip_investment_create' sip.pk %}" 
+                                       class="btn btn-sm btn-success" 
+                                       title="Invest Now">
+                                        <i class="bi bi-plus-circle"></i>
+                                    </a>
+                                    {% endif %}
+                                    <a href="{% url 'portfolios:sip_update' sip.pk %}" 
+                                       class="btn btn-sm btn-outline-secondary" 
+                                       title="Edit SIP">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-danger dropdown-toggle" 
+                                                type="button" 
+                                                data-bs-toggle="dropdown" 
+                                                title="More Actions">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li>
+                                                <a class="dropdown-item text-danger" 
+                                                   href="{% url 'portfolios:sip_delete' sip.pk %}"
+                                                   onclick="return confirm('Delete {{ sip.name }}? This action cannot be undone.')">
+                                                    <i class="bi bi-trash me-2"></i>Delete SIP
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <nav aria-label="SIP pagination">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <!-- Empty State -->
+            <div class="text-center py-5">
+                <i class="bi bi-piggy-bank display-1 text-muted mb-3"></i>
+                <h4>No SIPs Found</h4>
+                <p class="text-muted">You haven't created any SIPs yet. Start building your wealth with systematic investments!</p>
+                <a href="{% url 'portfolios:sip_create' %}" class="btn btn-success">
+                    <i class="bi bi-plus-circle me-1"></i>Create Your First SIP
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.table-warning {
+    --bs-table-bg: rgba(255, 193, 7, 0.1);
+}
+
+.btn-group .btn-sm {
+    padding: 0.25rem 0.5rem;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.card-header {
+    background-color: rgba(0, 0, 0, 0.03);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% load crispy_forms_field %}
+
+<div class="form-check d-flex align-items-center h-100">
+    <input type="checkbox" class="form-check-input me-2" name="{{ field.html_name }}" id="{{ field.auto_id }}"
+           {% if field.value %}checked{% endif %} {{ field.field.widget.attrs|flatatt }}>
+    <label class="form-check-label" for="{{ field.auto_id }}">
+        <strong>Auto-Invest</strong>
+        <br>
+        <small class="text-muted">Automatically create investments on due dates</small>
+    </label>
+</div>

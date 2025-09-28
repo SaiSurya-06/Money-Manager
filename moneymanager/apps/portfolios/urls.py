@@ -38,6 +38,34 @@ urlpatterns = [
     # Analytics
     path('analytics/', views.portfolio_analytics, name='analytics'),
     
+    # Enhanced functionality
+    path('asset-search/', views.asset_search, name='asset_search'),
+    path('<uuid:pk>/update-prices/', views.update_portfolio_prices, name='update_prices'),
+    path('bulk-upload/', views.BulkHoldingUploadView.as_view(), name='bulk_upload'),
+    path('<uuid:pk>/export-csv/', views.export_portfolio_csv, name='export_csv'),
+    
     # Family Admin Oversight URLs
     path('family/', views.FamilyPortfolioListView.as_view(), name='family_list'),
+    
+    # SIP Management URLs
+    path('sips/', views.SIPListView.as_view(), name='sip_list'),
+    path('sips/dashboard/', views.sip_dashboard, name='sip_dashboard'),
+    path('sips/create/', views.SIPCreateView.as_view(), name='sip_create'),
+    path('sips/import-history/', views.SIPHistoryImportView.as_view(), name='sip_import_history'),
+    path('sips/<uuid:pk>/', views.SIPDetailView.as_view(), name='sip_detail'),
+    path('sips/<uuid:pk>/update/', views.SIPUpdateView.as_view(), name='sip_update'),
+    path('sips/<uuid:pk>/delete/', views.SIPDeleteView.as_view(), name='sip_delete'),
+    path('sips/<uuid:sip_pk>/invest/', views.SIPInvestmentCreateView.as_view(), name='sip_investment_create'),
+    path('sips/<uuid:pk>/bulk-import/', views.sip_bulk_import, name='sip_bulk_import'),
+    path('sips/update-prices/', views.update_sip_prices, name='sip_update_prices'),
+    path('update-sip-prices/', views.update_sip_prices, name='update_sip_prices'),  # Alternative URL for AJAX calls
+    path('sips/<uuid:pk>/chart-data/', views.sip_performance_chart_data, name='sip_chart_data'),
+    
+    # Enhanced SIP functionality
+    path('sips/<uuid:pk>/pause/', views.sip_pause, name='sip_pause'),
+    path('sips/<uuid:pk>/resume/', views.sip_resume, name='sip_resume'),
+    path('sips/<uuid:pk>/complete/', views.sip_complete, name='sip_complete'),
+    path('sips/batch-update/', views.sip_batch_update, name='sip_batch_update'),
+    path('sips/auto-process/', views.process_auto_sips, name='process_auto_sips'),
+    path('sips/performance-report/', views.sip_performance_report, name='sip_performance_report'),
 ]

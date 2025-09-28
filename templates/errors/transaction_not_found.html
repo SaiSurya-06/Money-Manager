@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Transaction Not Found{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Transaction Not Found
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <h5>Sorry, the transaction you're looking for could not be found.</h5>
+                    
+                    <p class="mb-3">This could happen for several reasons:</p>
+                    
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-muted"></i> The transaction may have already been deleted</li>
+                        <li><i class="fas fa-check text-muted"></i> You may not have permission to access this transaction</li>
+                        <li><i class="fas fa-check text-muted"></i> The transaction may belong to a different user or family group</li>
+                        <li><i class="fas fa-check text-muted"></i> The URL may be incorrect or outdated</li>
+                    </ul>
+                    
+                    <hr>
+                    
+                    <h6>What you can do:</h6>
+                    <div class="d-flex gap-3 flex-wrap">
+                        <a href="{% url 'transactions:list' %}" class="btn btn-primary">
+                            <i class="fas fa-list"></i>
+                            View All Transactions
+                        </a>
+                        <a href="{% url 'transactions:create' %}" class="btn btn-success">
+                            <i class="fas fa-plus"></i>
+                            Add New Transaction
+                        </a>
+                        <a href="{% url 'dashboard:home' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-home"></i>
+                            Go to Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

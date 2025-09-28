@@ -1,0 +1,14 @@
+sip_name,fund_name,investment_date,amount,nav_price,units,frequency,transaction_id
+"HDFC Top 100 Monthly SIP","HDFC Top 100 Fund - Growth",2024-01-15,5000,165.50,30.2115,monthly,TXN001
+"HDFC Top 100 Monthly SIP","HDFC Top 100 Fund - Growth",2024-02-15,5000,168.75,29.6296,monthly,TXN002
+"HDFC Top 100 Monthly SIP","HDFC Top 100 Fund - Growth",2024-03-15,5000,171.20,29.2134,monthly,TXN003
+"HDFC Top 100 Monthly SIP","HDFC Top 100 Fund - Growth",2024-04-15,5000,169.85,29.4430,monthly,TXN004
+"HDFC Top 100 Monthly SIP","HDFC Top 100 Fund - Growth",2024-05-15,5000,170.90,29.2598,monthly,TXN005
+"HDFC Top 100 Monthly SIP","HDFC Top 100 Fund - Growth",2024-06-15,5000,172.05,29.0630,monthly,TXN006
+"SBI Focused Equity SIP","SBI Focused Equity Fund - Growth",2024-01-10,3000,49.25,60.9137,monthly,TXN007
+"SBI Focused Equity SIP","SBI Focused Equity Fund - Growth",2024-02-10,3000,50.10,59.8802,monthly,TXN008
+"SBI Focused Equity SIP","SBI Focused Equity Fund - Growth",2024-03-10,3000,51.00,58.8235,monthly,TXN009
+"Axis Midcap Monthly SIP","Axis Midcap Fund - Growth",2024-01-05,7000,125.50,55.7769,monthly,TXN010
+"Axis Midcap Monthly SIP","Axis Midcap Fund - Growth",2024-02-05,7000,127.20,55.0314,monthly,TXN011
+"Motilal Nasdaq SIP","Motilal Oswal Nasdaq 100 Fund of Fund - Growth",2024-01-20,10000,1180.50,8.4710,monthly,TXN012
+"Motilal Nasdaq SIP","Motilal Oswal Nasdaq 100 Fund of Fund - Growth",2024-02-20,10000,1195.75,8.3624,monthly,TXN013

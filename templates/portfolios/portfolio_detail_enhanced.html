@@ -1,0 +1,381 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% load portfolio_extras %}
+
+{% block title %}{{ portfolio.name }} - Portfolio Detail - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Portfolio Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="bi bi-briefcase me-2"></i>{{ portfolio.name }}
+            </h1>
+            <p class="text-muted">{{ portfolio.description|default:"Investment Portfolio" }}</p>
+        </div>
+        <div class="btn-group">
+            {% if can_edit %}
+                <a href="{% url 'portfolios:holding_create' portfolio.pk %}" class="btn btn-success">
+                    <i class="bi bi-plus-circle me-1"></i>Add Holding
+                </a>
+                <button type="button" class="btn btn-info" onclick="updatePrices()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Update Prices
+                </button>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="bi bi-three-dots"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'portfolios:update' portfolio.pk %}">
+                            <i class="bi bi-pencil me-2"></i>Edit Portfolio
+                        </a></li>
+                        <li><a class="dropdown-item" href="{% url 'portfolios:bulk_upload' %}">
+                            <i class="bi bi-upload me-2"></i>Bulk Upload
+                        </a></li>
+                        <li><a class="dropdown-item" href="{% url 'portfolios:export_csv' portfolio.pk %}">
+                            <i class="bi bi-download me-2"></i>Export CSV
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="{% url 'portfolios:delete' portfolio.pk %}">
+                            <i class="bi bi-trash me-2"></i>Delete Portfolio
+                        </a></li>
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Portfolio Metrics -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">Portfolio Value</h6>
+                            <h4 class="mb-0">₹{{ portfolio.total_value|floatformat:2|intcomma }}</h4>
+                        </div>
+                        <i class="bi bi-wallet2 fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-secondary text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">Total Invested</h6>
+                            <h4 class="mb-0">₹{{ portfolio.total_cost_basis|floatformat:2|intcomma }}</h4>
+                        </div>
+                        <i class="bi bi-piggy-bank fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card {% if portfolio.total_gain_loss >= 0 %}bg-success{% else %}bg-danger{% endif %} text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">Total P&L</h6>
+                            <h4 class="mb-0">
+                                {% if portfolio.total_gain_loss >= 0 %}+{% endif %}₹{{ portfolio.total_gain_loss|floatformat:2|intcomma }}
+                            </h4>
+                        </div>
+                        <i class="bi bi-graph-{% if portfolio.total_gain_loss >= 0 %}up{% else %}down{% endif %} fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card {% if portfolio.total_gain_loss_percentage >= 0 %}bg-success{% else %}bg-danger{% endif %} text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1">Return %</h6>
+                            <h4 class="mb-0">
+                                {% if portfolio.total_gain_loss_percentage >= 0 %}+{% endif %}{{ portfolio.total_gain_loss_percentage|floatformat:2 }}%
+                            </h4>
+                        </div>
+                        <i class="bi bi-percent fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Holdings Table -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-list me-2"></i>Holdings ({{ total_holdings }})
+                    </h5>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-funnel me-1"></i>Filter
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="?sort=-gain_loss_percentage">Best Performers</a></li>
+                            <li><a class="dropdown-item" href="?sort=gain_loss_percentage">Worst Performers</a></li>
+                            <li><a class="dropdown-item" href="?sort=-current_value">Highest Value</a></li>
+                            <li><a class="dropdown-item" href="?asset_type=stock">Stocks Only</a></li>
+                            <li><a class="dropdown-item" href="?asset_type=mutual_fund">Mutual Funds Only</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if holdings %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Asset</th>
+                                        <th class="text-end">Quantity</th>
+                                        <th class="text-end">Avg Cost</th>
+                                        <th class="text-end">Current Price</th>
+                                        <th class="text-end">Market Value</th>
+                                        <th class="text-end">P&L</th>
+                                        <th class="text-end">P&L %</th>
+                                        <th class="text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for holding in holdings %}
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div class="me-3">
+                                                    <span class="badge badge-sm {% if holding.asset.asset_type == 'stock' %}bg-primary{% elif holding.asset.asset_type == 'mutual_fund' %}bg-success{% else %}bg-info{% endif %}">
+                                                        {{ holding.asset.get_asset_type_display }}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <div class="fw-semibold">{{ holding.asset.symbol }}</div>
+                                                    <small class="text-muted">{{ holding.asset.name|truncatechars:30 }}</small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="text-end">{{ holding.quantity|floatformat:6 }}</td>
+                                        <td class="text-end">₹{{ holding.average_cost|floatformat:2 }}</td>
+                                        <td class="text-end">
+                                            <div>₹{{ holding.asset.current_price|floatformat:2 }}</div>
+                                            {% if holding.asset.day_change != 0 %}
+                                                <small class="{% if holding.asset.day_change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                                    {% if holding.asset.day_change >= 0 %}+{% endif %}₹{{ holding.asset.day_change|floatformat:2 }}
+                                                </small>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            <strong>₹{{ holding.current_value|floatformat:2|intcomma }}</strong>
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="{% if holding.gain_loss >= 0 %}text-success{% else %}text-danger{% endif %} fw-semibold">
+                                                {% if holding.gain_loss >= 0 %}+{% endif %}₹{{ holding.gain_loss|floatformat:2|intcomma }}
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="badge {% if holding.gain_loss_percentage >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                                {% if holding.gain_loss_percentage >= 0 %}+{% endif %}{{ holding.gain_loss_percentage|floatformat:2 }}%
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{% url 'portfolios:holding_update' holding.pk %}" class="btn btn-outline-primary btn-sm" title="Edit Holding">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                                <a href="{% url 'portfolios:transaction_create' holding.pk %}" class="btn btn-outline-success btn-sm" title="Add Transaction">
+                                                    <i class="bi bi-plus"></i>
+                                                </a>
+                                                <a href="{% url 'portfolios:holding_delete' holding.pk %}" class="btn btn-outline-danger btn-sm" title="Remove Holding">
+                                                    <i class="bi bi-trash"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-inbox display-1 text-muted"></i>
+                            <h4 class="mt-3 text-muted">No Holdings Yet</h4>
+                            <p class="text-muted">Start building your portfolio by adding your first holding!</p>
+                            <a href="{% url 'portfolios:holding_create' portfolio.pk %}" class="btn btn-success btn-lg">
+                                <i class="bi bi-plus-circle me-2"></i>Add Your First Holding
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Performance Summary -->
+            {% if best_performer or worst_performer %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6><i class="bi bi-trophy me-2"></i>Performance Highlights</h6>
+                </div>
+                <div class="card-body">
+                    {% if best_performer %}
+                        <div class="mb-3">
+                            <small class="text-muted">Best Performer</small>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-semibold">{{ best_performer.asset.symbol }}</div>
+                                    <small class="text-success">+{{ best_performer.gain_loss_percentage|floatformat:2 }}%</small>
+                                </div>
+                                <div class="text-end">
+                                    <div class="text-success">+₹{{ best_performer.gain_loss|floatformat:2 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    {% if worst_performer %}
+                        <div>
+                            <small class="text-muted">Needs Attention</small>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-semibold">{{ worst_performer.asset.symbol }}</div>
+                                    <small class="text-danger">{{ worst_performer.gain_loss_percentage|floatformat:2 }}%</small>
+                                </div>
+                                <div class="text-end">
+                                    <div class="text-danger">₹{{ worst_performer.gain_loss|floatformat:2 }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Asset Allocation -->
+            {% if asset_allocation %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6><i class="bi bi-pie-chart me-2"></i>Asset Allocation</h6>
+                </div>
+                <div class="card-body">
+                    {% for allocation in asset_allocation %}
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-capitalize">{{ allocation.asset__asset_type|default:"Other" }}</span>
+                            <div class="text-end">
+                                <div class="fw-semibold">₹{{ allocation.total_value|floatformat:0|intcomma }}</div>
+                                <small class="text-muted">{{ allocation.count }} holding{{ allocation.count|pluralize }}</small>
+                            </div>
+                        </div>
+                        <div class="progress mb-3" style="height: 8px;">
+                            {% with allocation.total_value|mul:100|div:portfolio.total_value as percentage %}
+                            <div class="progress-bar" 
+                                 data-width="{{ percentage|floatformat:1 }}"
+                                 role="progressbar" 
+                                 aria-valuenow="{{ percentage|floatformat:1 }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                            </div>
+                            {% endwith %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Recent Transactions -->
+            {% if recent_transactions %}
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6><i class="bi bi-clock-history me-2"></i>Recent Activity</h6>
+                    <a href="#" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body">
+                    {% for transaction in recent_transactions %}
+                        <div class="d-flex justify-content-between align-items-center {% if not forloop.last %}mb-3 pb-3 border-bottom{% endif %}">
+                            <div>
+                                <div class="fw-semibold">{{ transaction.holding.asset.symbol }}</div>
+                                <small class="text-muted">
+                                    {{ transaction.get_transaction_type_display }} {{ transaction.quantity }} units
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-semibold">₹{{ transaction.total_amount|floatformat:2 }}</div>
+                                <small class="text-muted">{{ transaction.date|date:"M d" }}</small>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <a href="{% url 'portfolios:list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Portfolios
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updatePrices() {
+    const btn = event.target.closest('button');
+    const originalHtml = btn.innerHTML;
+    
+    btn.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Updating...';
+    btn.disabled = true;
+    
+    fetch('{% url "portfolios:update_prices" portfolio.pk %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            throw new Error('Update failed');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+        alert('Failed to update prices. Please try again.');
+    });
+}
+
+// Add spinning animation for update button
+document.head.insertAdjacentHTML('beforeend', `
+<style>
+.spin {
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+`);
+
+// Set progress bar widths from data attributes
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.progress-bar[data-width]').forEach(function(bar) {
+        const width = bar.getAttribute('data-width');
+        bar.style.width = width + '%';
+    });
+});
+</script>
+{% endblock %}

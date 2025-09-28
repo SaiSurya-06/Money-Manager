@@ -17,6 +17,20 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
 
+# API Configuration
+API_SETTINGS = {
+    'ALPHA_VANTAGE_API_KEY': config('ALPHA_VANTAGE_API_KEY', default=''),
+    'TWELVE_DATA_API_KEY': config('TWELVE_DATA_API_KEY', default=''),
+    'IEX_CLOUD_API_KEY': config('IEX_CLOUD_API_KEY', default=''),
+    'FINNHUB_API_KEY': config('FINNHUB_API_KEY', default=''),
+    'API_CACHE_TIMEOUT': config('API_CACHE_TIMEOUT', default=300, cast=int),
+    'API_REQUEST_TIMEOUT': config('API_REQUEST_TIMEOUT', default=10, cast=int),
+    'MAX_API_CALLS_PER_MINUTE': config('MAX_API_CALLS_PER_MINUTE', default=60, cast=int),
+    'MAX_API_CALLS_PER_DAY': config('MAX_API_CALLS_PER_DAY', default=1000, cast=int),
+    'ENABLE_FALLBACK_APIS': config('ENABLE_FALLBACK_APIS', default=True, cast=bool),
+    'USE_MOCK_DATA_IF_API_FAILS': config('USE_MOCK_DATA_IF_API_FAILS', default=True, cast=bool),
+}
+
 # Application definition
 DJANGO_APPS = [
     'django.contrib.admin',

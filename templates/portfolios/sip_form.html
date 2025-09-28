@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+{% if object %}Edit SIP{% else %}Create New SIP{% endif %} - Money Manager
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-piggy-bank me-2"></i>
+                        {% if object %}Edit SIP: {{ object.name }}{% else %}Create New SIP{% endif %}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if not object %}
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-info-circle me-2"></i>What is a SIP?</h6>
+                        <p class="mb-0">
+                            A Systematic Investment Plan (SIP) allows you to invest a fixed amount 
+                            regularly in mutual funds. It helps in rupee cost averaging and building 
+                            wealth over time through disciplined investing.
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ form|crispy }}
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'portfolios:sip_dashboard' %}" class="btn btn-secondary me-2">
+                                Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                {% if object %}
+                                    <i class="bi bi-save me-1"></i>Update SIP
+                                {% else %}
+                                    <i class="bi bi-plus-circle me-1"></i>Create SIP
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- SIP Benefits Information -->
+            {% if not object %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-lightbulb me-2"></i>
+                        SIP Benefits
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    <strong>Rupee Cost Averaging:</strong> Buy more units when prices are low
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    <strong>Disciplined Investing:</strong> Regular investment habit
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    <strong>Power of Compounding:</strong> Earn returns on returns
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    <strong>Flexibility:</strong> Start with as low as ₹100
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    <strong>Real-time Tracking:</strong> Monitor P&L with live NAV
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    <strong>Tax Benefits:</strong> ELSS funds offer tax deduction
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-populate SIP name based on selected asset
+document.addEventListener('DOMContentLoaded', function() {
+    const assetField = document.getElementById('id_asset');
+    const nameField = document.getElementById('id_name');
+    const amountField = document.getElementById('id_amount');
+    
+    if (assetField && nameField) {
+        assetField.addEventListener('change', function() {
+            const selectedOption = assetField.options[assetField.selectedIndex];
+            const assetName = selectedOption.text;
+            const amount = amountField.value || '5000';
+            
+            if (assetName && assetName !== 'Select a Mutual Fund' && !nameField.value) {
+                nameField.value = `SIP for ${assetName} - ₹${amount}`;
+            }
+        });
+        
+        amountField.addEventListener('blur', function() {
+            if (assetField.value && nameField.value.includes('₹')) {
+                const assetName = assetField.options[assetField.selectedIndex].text;
+                const amount = amountField.value || '5000';
+                nameField.value = `SIP for ${assetName} - ₹${amount}`;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

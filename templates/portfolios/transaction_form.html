@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Add Transaction - {{ holding.asset.symbol }} - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4>
+                        <i class="bi bi-plus-circle me-2"></i>Add Transaction
+                    </h4>
+                    <div class="d-flex align-items-center">
+                        <span class="badge {% if holding.asset.asset_type == 'stock' %}bg-primary{% elif holding.asset.asset_type == 'mutual_fund' %}bg-success{% else %}bg-info{% endif %} me-2">
+                            {{ holding.asset.get_asset_type_display }}
+                        </span>
+                        <div>
+                            <h6 class="mb-0">{{ holding.asset.symbol }}</h6>
+                            <small class="text-muted">{{ holding.asset.name }}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Current Holding Summary -->
+                    <div class="bg-light rounded p-3 mb-4">
+                        <h6>Current Position</h6>
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="fw-semibold">{{ holding.quantity }}</div>
+                                <small class="text-muted">Quantity</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="fw-semibold">₹{{ holding.average_cost|floatformat:2 }}</div>
+                                <small class="text-muted">Avg Cost</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="fw-semibold">₹{{ holding.current_value|floatformat:2 }}</div>
+                                <small class="text-muted">Market Value</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Transaction Form -->
+                    <form method="post" id="transactionForm">
+                        {% csrf_token %}
+                        {{ form|crispy }}
+                        
+                        <!-- Live Calculation Display -->
+                        <div id="calculationPreview" class="alert alert-info mt-3" style="display: none;">
+                            <h6><i class="bi bi-calculator me-2"></i>Transaction Preview</h6>
+                            <div class="row">
+                                <div class="col-6">
+                                    <strong>Total Amount:</strong> ₹<span id="totalAmount">0.00</span>
+                                </div>
+                                <div class="col-6">
+                                    <strong>New Quantity:</strong> <span id="newQuantity">{{ holding.quantity }}</span>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-6">
+                                    <strong>New Avg Cost:</strong> ₹<span id="newAvgCost">{{ holding.average_cost|floatformat:2 }}</span>
+                                </div>
+                                <div class="col-6">
+                                    <strong>Transaction Fee:</strong> ₹<span id="transactionFee">0.00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'portfolios:detail' holding.portfolio.pk %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left me-1"></i>Back to Portfolio
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-plus me-1"></i>Add Transaction
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Transaction Guidelines -->
+                    <div class="mt-4">
+                        <h6>Transaction Guidelines:</h6>
+                        <ul class="small text-muted">
+                            <li><strong>Buy:</strong> Increases your holdings and updates average cost</li>
+                            <li><strong>Sell:</strong> Decreases your holdings and realizes gains/losses</li>
+                            <li><strong>Dividend:</strong> Records dividend income without affecting holdings</li>
+                            <li><strong>Split:</strong> Adjusts quantity for stock splits</li>
+                            <li>All transactions are recorded for tax and performance calculation purposes</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ holding.quantity|json_script:"holding-quantity" }}
+{{ holding.average_cost|json_script:"holding-avg-cost" }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('transactionForm');
+    const quantityField = document.getElementById('id_quantity');
+    const priceField = document.getElementById('id_price_per_unit');
+    const typeField = document.getElementById('id_transaction_type');
+    const feeField = document.getElementById('id_transaction_fee');
+    const preview = document.getElementById('calculationPreview');
+    
+    const currentQuantity = JSON.parse(document.getElementById('holding-quantity').textContent) || 0;
+    const currentAvgCost = JSON.parse(document.getElementById('holding-avg-cost').textContent) || 0;
+    
+    function updatePreview() {
+        const quantity = parseFloat(quantityField.value) || 0;
+        const price = parseFloat(priceField.value) || 0;
+        const fee = parseFloat(feeField.value) || 0;
+        const type = typeField.value;
+        
+        if (quantity > 0 && price > 0) {
+            preview.style.display = 'block';
+            
+            const totalAmount = (quantity * price) + fee;
+            let newQuantity = currentQuantity;
+            let newAvgCost = currentAvgCost;
+            
+            if (type === 'buy') {
+                newQuantity = currentQuantity + quantity;
+                const totalCost = (currentQuantity * currentAvgCost) + (quantity * price);
+                newAvgCost = totalCost / newQuantity;
+            } else if (type === 'sell') {
+                newQuantity = Math.max(0, currentQuantity - quantity);
+                // Average cost remains the same for sells
+            }
+            
+            document.getElementById('totalAmount').textContent = totalAmount.toFixed(2);
+            document.getElementById('newQuantity').textContent = newQuantity.toFixed(6);
+            document.getElementById('newAvgCost').textContent = newAvgCost.toFixed(2);
+            document.getElementById('transactionFee').textContent = fee.toFixed(2);
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+    
+    // Add event listeners
+    [quantityField, priceField, typeField, feeField].forEach(field => {
+        if (field) {
+            field.addEventListener('input', updatePreview);
+            field.addEventListener('change', updatePreview);
+        }
+    });
+    
+    // Form validation
+    form.addEventListener('submit', function(e) {
+        const quantity = parseFloat(quantityField.value) || 0;
+        const type = typeField.value;
+        
+        if (type === 'sell' && quantity > currentQuantity) {
+            e.preventDefault();
+            alert(`Cannot sell ${quantity} units. You only have ${currentQuantity} units available.`);
+            return false;
+        }
+        
+        if (quantity <= 0) {
+            e.preventDefault();
+            alert('Please enter a valid quantity greater than 0.');
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}

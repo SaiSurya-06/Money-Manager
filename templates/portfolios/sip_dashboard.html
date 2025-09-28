@@ -1,0 +1,306 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}SIP Dashboard - Money Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+.sip-card {
+    border-left: 4px solid #28a745;
+    transition: transform 0.2s;
+}
+
+.sip-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.due-sip {
+    border-left-color: #dc3545;
+    background-color: #fff5f5;
+}
+
+.metric-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.metric-card.positive {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.metric-card.negative {
+    background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
+}
+
+.chart-container {
+    height: 300px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">SIP Dashboard</h1>
+            <p class="text-muted">Systematic Investment Plan Overview</p>
+        </div>
+        <div>
+            <a href="{% url 'portfolios:sip_create' %}" class="btn btn-success me-2">
+                <i class="bi bi-plus-circle me-1"></i>New SIP
+            </a>
+            <a href="{% url 'portfolios:sip_import_history' %}" class="btn btn-info me-2">
+                <i class="bi bi-upload me-1"></i>Import History
+            </a>
+            <form method="post" action="{% url 'portfolios:sip_update_prices' %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Update Prices
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card metric-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-piggy-bank fs-1 mb-2"></i>
+                    <h5 class="card-title">Total Invested</h5>
+                    <h3>₹{{ total_invested|floatformat:0 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card metric-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-graph-up fs-1 mb-2"></i>
+                    <h5 class="card-title">Current Value</h5>
+                    <h3>₹{{ current_value|floatformat:0 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card metric-card {% if total_returns >= 0 %}positive{% else %}negative{% endif %}">
+                <div class="card-body text-center">
+                    <i class="bi bi-{% if total_returns >= 0 %}trending-up{% else %}trending-down{% endif %} fs-1 mb-2"></i>
+                    <h5 class="card-title">Total Returns</h5>
+                    <h3>₹{{ total_returns|floatformat:0 }}</h3>
+                    <small>({{ returns_percentage|floatformat:2 }}%)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card metric-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-clock fs-1 mb-2"></i>
+                    <h5 class="card-title">Active SIPs</h5>
+                    <h3>{{ active_sips }}</h3>
+                    <small>{{ paused_sips }} paused</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Due SIPs Alert -->
+    {% if due_sips %}
+    <div class="alert alert-warning" role="alert">
+        <h4 class="alert-heading">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            SIPs Due for Investment
+        </h4>
+        <p>You have <strong>{{ due_sips|length }}</strong> SIP(s) due for investment:</p>
+        <ul class="mb-0">
+            {% for sip in due_sips %}
+            <li>
+                <strong>{{ sip.name }}</strong> - ₹{{ sip.amount }} 
+                (Due: {{ sip.next_investment_date }})
+                <a href="{% url 'portfolios:sip_investment_create' sip.pk %}" class="btn btn-sm btn-success ms-2">
+                    Invest Now
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Monthly Investment Chart -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-bar-chart me-2"></i>
+                        Monthly Investment Trend
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="monthlyChart" class="chart-container"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Investments -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Recent Investments
+                    </h5>
+                    <a href="{% url 'portfolios:sip_list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body">
+                    {% if recent_investments %}
+                        <div class="list-group list-group-flush">
+                            {% for investment in recent_investments %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">{{ investment.sip.name }}</h6>
+                                    <small class="text-muted">{{ investment.date }}</small>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-success">₹{{ investment.amount|floatformat:0 }}</span>
+                                    <br>
+                                    <small class="text-muted">{{ investment.units_allocated|floatformat:3 }} units</small>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted text-center">No recent investments found.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- All SIPs -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-list-ul me-2"></i>
+                        Your SIPs
+                    </h5>
+                    <a href="{% url 'portfolios:sip_list' %}" class="btn btn-sm btn-outline-primary">Manage All</a>
+                </div>
+                <div class="card-body">
+                    {% if user_sips %}
+                        <div class="row">
+                            {% for sip in user_sips %}
+                            <div class="col-md-6 col-lg-4 mb-3">
+                                <div class="card sip-card h-100 {% if sip.is_due_for_investment %}due-sip{% endif %}">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="card-title mb-0">{{ sip.name }}</h6>
+                                            <span class="badge bg-{% if sip.status == 'active' %}success{% elif sip.status == 'paused' %}warning{% else %}secondary{% endif %}">
+                                                {{ sip.get_status_display }}
+                                            </span>
+                                        </div>
+                                        <p class="card-text">
+                                            <small class="text-muted">{{ sip.asset.name }}</small>
+                                        </p>
+                                        
+                                        <div class="row text-center">
+                                            <div class="col-6">
+                                                <div class="border-end">
+                                                    <strong>₹{{ sip.amount }}</strong>
+                                                    <br><small class="text-muted">{{ sip.get_frequency_display }}</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <strong>₹{{ sip.current_value|floatformat:0 }}</strong>
+                                                <br><small class="text-{% if sip.returns_percentage >= 0 %}success{% else %}danger{% endif %}">
+                                                    {{ sip.returns_percentage|floatformat:2 }}%
+                                                </small>
+                                            </div>
+                                        </div>
+                                        
+                                        <hr>
+                                        <div class="text-center">
+                                            <small class="text-muted">
+                                                Next: {{ sip.next_investment_date }}
+                                                {% if sip.is_due_for_investment %}
+                                                    <span class="badge bg-danger ms-1">Due!</span>
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="card-footer">
+                                        <div class="btn-group w-100" role="group">
+                                            <a href="{% url 'portfolios:sip_detail' sip.pk %}" 
+                                               class="btn btn-sm btn-outline-primary">View</a>
+                                            {% if sip.is_due_for_investment %}
+                                            <a href="{% url 'portfolios:sip_investment_create' sip.pk %}" 
+                                               class="btn btn-sm btn-success">Invest</a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-piggy-bank display-4 text-muted mb-3"></i>
+                            <h5>No SIPs Found</h5>
+                            <p class="text-muted">Start your investment journey by creating your first SIP.</p>
+                            <a href="{% url 'portfolios:sip_create' %}" class="btn btn-success">
+                                <i class="bi bi-plus-circle me-1"></i>Create Your First SIP
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{{ monthly_data|json_script:"monthly-data" }}
+<script>
+// Monthly Investment Chart
+const monthlyData = JSON.parse(document.getElementById('monthly-data').textContent) || [];
+const ctx = document.getElementById('monthlyChart').getContext('2d');
+
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: monthlyData.map(d => `${d.month} ${d.year}`),
+        datasets: [{
+            label: 'Monthly Investment (₹)',
+            data: monthlyData.map(d => d.amount),
+            backgroundColor: 'rgba(40, 167, 69, 0.8)',
+            borderColor: 'rgba(40, 167, 69, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: function(value) {
+                        return '₹' + value.toLocaleString();
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

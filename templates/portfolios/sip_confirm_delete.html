@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% load portfolio_extras %}
+
+{% block title %}Delete SIP - {{ sip.name }} - MoneyManager{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Confirm SIP Deletion
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- Warning Alert -->
+                    <div class="alert alert-danger" role="alert">
+                        <h5 class="alert-heading">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Permanent Deletion Warning
+                        </h5>
+                        <p class="mb-0">
+                            <strong>This action cannot be undone!</strong> 
+                            Deleting this SIP will permanently remove all investment records and historical data.
+                        </p>
+                    </div>
+
+                    <!-- SIP Details -->
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <h5 class="text-danger mb-3">You are about to delete:</h5>
+                            
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ sip.name }}</h6>
+                                    <p class="card-text">
+                                        <strong>Fund:</strong> {{ sip.asset.name }}<br>
+                                        <strong>Monthly Amount:</strong> ₹{{ sip.amount|floatformat:0 }}<br>
+                                        <strong>Status:</strong> 
+                                        <span class="badge {% if sip.status == 'active' %}bg-success{% elif sip.status == 'paused' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                            {{ sip.get_status_display }}
+                                        </span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Investment Statistics -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card border-primary">
+                                <div class="card-body text-center">
+                                    <h6 class="card-subtitle mb-2 text-muted">Investments</h6>
+                                    <h4 class="text-primary">{{ investment_count }}</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-info">
+                                <div class="card-body text-center">
+                                    <h6 class="card-subtitle mb-2 text-muted">Total Invested</h6>
+                                    <h5 class="text-info">₹{{ total_invested|floatformat:0 }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-success">
+                                <div class="card-body text-center">
+                                    <h6 class="card-subtitle mb-2 text-muted">Current Value</h6>
+                                    <h5 class="text-success">₹{{ current_value|floatformat:0 }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card {% if total_returns >= 0 %}border-success{% else %}border-danger{% endif %}">
+                                <div class="card-body text-center">
+                                    <h6 class="card-subtitle mb-2 text-muted">Returns</h6>
+                                    <h5 class="{% if total_returns >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                        ₹{{ total_returns|floatformat:0 }}
+                                    </h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if recent_investments %}
+                    <!-- Recent Investments Warning -->
+                    <div class="alert alert-warning" role="alert">
+                        <h6 class="alert-heading">
+                            <i class="bi bi-clock-history me-2"></i>
+                            Recent Activity Detected
+                        </h6>
+                        <p class="mb-2">{{ warning_message }}</p>
+                        <small class="text-muted">
+                            Consider pausing this SIP instead of deleting if you plan to resume later.
+                        </small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Data Loss Information -->
+                    <div class="alert alert-info" role="alert">
+                        <h6 class="alert-heading">
+                            <i class="bi bi-info-circle me-2"></i>
+                            What will be deleted:
+                        </h6>
+                        <ul class="mb-0">
+                            <li>All {{ investment_count }} investment record(s)</li>
+                            <li>SIP configuration and settings</li>
+                            <li>Performance history and analytics</li>
+                            <li>Any scheduled future investments</li>
+                        </ul>
+                    </div>
+
+                    <!-- Confirmation Form -->
+                    <form method="post" class="mt-4">
+                        {% csrf_token %}
+                        
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <a href="{% url 'portfolios:sip_detail' sip.pk %}" class="btn btn-secondary">
+                                    <i class="bi bi-arrow-left me-2"></i>Cancel
+                                </a>
+                                <a href="{% url 'portfolios:sip_update' sip.pk %}" class="btn btn-warning ms-2">
+                                    <i class="bi bi-pause-circle me-2"></i>Pause Instead
+                                </a>
+                            </div>
+                            
+                            <div>
+                                <button type="submit" class="btn btn-danger" 
+                                        onclick="return confirm('Are you absolutely sure? This cannot be undone!')">
+                                    <i class="bi bi-trash-fill me-2"></i>
+                                    Yes, Delete Permanently
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Add double confirmation for extra safety
+document.querySelector('form').addEventListener('submit', function(e) {
+    const confirmed = confirm('Final confirmation: Delete "{{ sip.name }}" and all {{ investment_count }} investment(s)?');
+    if (!confirmed) {
+        e.preventDefault();
+        return false;
+    }
+    
+    // Show loading state
+    const btn = this.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
+    
+    return true;
+});
+</script>
+{% endblock %}

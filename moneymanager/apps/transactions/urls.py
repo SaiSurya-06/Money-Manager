@@ -15,6 +15,7 @@ urlpatterns = [
     path('accounts/create/', views.AccountCreateView.as_view(), name='account_create'),
     path('accounts/<uuid:pk>/', views.AccountDetailView.as_view(), name='account_detail'),
     path('accounts/<uuid:pk>/edit/', views.AccountUpdateView.as_view(), name='account_update'),
+    path('accounts/<uuid:pk>/delete/', views.AccountDeleteView.as_view(), name='account_delete'),
 
     # Recurring transactions
     path('recurring/', views.recurring_transactions_list, name='recurring_list'),

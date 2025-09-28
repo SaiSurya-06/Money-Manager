@@ -180,8 +180,47 @@ class TransactionDeleteView(LoginRequiredMixin, DeleteView):
             queryset = queryset.filter(user=self.request.user, family_group__isnull=True)
         return queryset
 
+    def get_object(self, queryset=None):
+        """Override to provide better error messages for missing transactions."""
+        try:
+            return super().get_object(queryset)
+        except Transaction.DoesNotExist:
+            # Check if transaction exists but belongs to another user
+            transaction_id = self.kwargs.get('pk')
+            transaction = Transaction.objects.filter(id=transaction_id, is_active=True).first()
+            
+            error_context = {
+                'transaction_id': transaction_id,
+                'current_user': self.request.user.username
+            }
+            
+            if transaction:
+                if transaction.user != self.request.user:
+                    error_context['error_type'] = 'permission_denied'
+                    error_context['owner'] = transaction.user.username
+                    logger.warning(f"User {self.request.user} tried to delete transaction belonging to {transaction.user}")
+                elif transaction.family_group != getattr(self.request, 'current_family_group', None):
+                    error_context['error_type'] = 'family_group_mismatch'
+                else:
+                    error_context['error_type'] = 'unknown_access_denial'
+            else:
+                # Check if transaction exists but is soft-deleted
+                deleted_transaction = Transaction.objects.filter(id=transaction_id, is_active=False).first()
+                if deleted_transaction:
+                    error_context['error_type'] = 'already_deleted'
+                else:
+                    error_context['error_type'] = 'not_found'
+            
+            # Store error context for the template
+            self.request.transaction_error_context = error_context
+            
+            # Raise Http404 to show custom error page
+            from django.http import Http404
+            raise Http404("Transaction not found or access denied")
+
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
+        
         # Soft delete
         self.object.is_active = False
         self.object.save()
@@ -280,6 +319,29 @@ class AccountDetailView(LoginRequiredMixin, DetailView):
         else:
             queryset = queryset.filter(owner=self.request.user, family_group__isnull=True)
         return queryset
+
+
+class AccountDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete an account (soft delete)."""
+    model = Account
+    template_name = 'transactions/account_confirm_delete.html'
+    success_url = reverse_lazy('transactions:accounts')
+
+    def get_queryset(self):
+        queryset = Account.objects.filter(is_active=True)
+        if hasattr(self.request, 'current_family_group') and self.request.current_family_group:
+            queryset = queryset.filter(family_group=self.request.current_family_group)
+        else:
+            queryset = queryset.filter(owner=self.request.user, family_group__isnull=True)
+        return queryset
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        # Soft delete
+        self.object.is_active = False
+        self.object.save()
+        messages.success(request, 'Account deactivated successfully!')
+        return HttpResponseRedirect(self.success_url)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
