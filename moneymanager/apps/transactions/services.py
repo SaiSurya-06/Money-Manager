@@ -15,6 +15,19 @@ from django.contrib.auth import get_user_model
 from .models import Account, Transaction
 from ..core.models import Category
 
+# Import modular bank analyzers
+try:
+    import sys
+    import os
+    # Add the project root to Python path
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    sys.path.insert(0, project_root)
+    from bank_pdf_analyzers import BankAnalyzerFactory
+    MODULAR_ANALYZERS_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Modular bank analyzers not available: {e}")
+    MODULAR_ANALYZERS_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
@@ -416,41 +429,78 @@ class TransactionImportService:
         }
 
     def _parse_date(self, date_str: str):
-        """Parse date string using multiple formats."""
+        """Parse date string using multiple formats with bank-specific handling."""
+        if not date_str:
+            logger.error("Empty date string provided to _parse_date")
+            return None
+            
         date_str = date_str.strip()
+        logger.debug(f"Parsing date string: '{date_str}'")
         
-        # For DD/MM/YYYY format (like Federal Bank), try this first
-        # This prevents 02/06/2023 being parsed as Feb 6 instead of June 2
-        priority_formats = ['%d/%m/%Y', '%Y-%m-%d', '%m/%d/%Y', '%Y-%m-%d %H:%M:%S']
+        # Enhanced format list with bank-specific priorities
+        # YYYY-MM-DD first for converted dates, then DD/MM/YYYY for original formats
+        priority_formats = [
+            '%Y-%m-%d',        # For converted dates (HDFC, SBI, Axis)
+            '%d/%m/%Y',        # DD/MM/YYYY format (Federal Bank, original HDFC)
+            '%d/%m/%y',        # DD/MM/YY format (HDFC 2-digit year)
+            '%Y-%m-%d %H:%M:%S',  # With timestamp
+            '%m/%d/%Y',        # MM/DD/YYYY format (US style)
+            '%d-%m-%Y',        # DD-MM-YYYY format
+            '%d %b %Y',        # DD MMM YYYY format (SBI)
+            '%d-%b-%Y'         # DD-MMM-YYYY format
+        ]
         
         for date_format in priority_formats:
             try:
                 parsed_date = datetime.strptime(date_str, date_format).date()
-                logger.info(f"Successfully parsed '{date_str}' using format '{date_format}' -> {parsed_date}")
+                logger.debug(f"Successfully parsed '{date_str}' using format '{date_format}' -> {parsed_date}")
                 return parsed_date
             except ValueError:
                 continue
                 
-        # If no format worked, log the issue
+        # If no format worked, log the issue with more details
         logger.error(f"Failed to parse date: '{date_str}' using any known format")
+        logger.error(f"Attempted formats: {priority_formats}")
         return None
 
     def _create_transaction_batch(self, transactions: List[Dict]) -> int:
-        """Create transactions in batch for better performance."""
+        """Create transactions in batch for better performance with duplicate detection."""
         created_count = 0
+        skipped_duplicates = 0
+        
         try:
             # Create transactions one by one to trigger signals and validation
             with transaction.atomic():
                 for trans_data in transactions:
                     try:
+                        # Check for duplicates based on date, description (first 50 chars), amount, and account
+                        description_part = trans_data.get('description', '')[:50]  # First 50 chars
+                        
+                        existing_transaction = Transaction.objects.filter(
+                            date=trans_data.get('date'),
+                            description__icontains=description_part,
+                            amount=trans_data.get('amount'),
+                            account=trans_data.get('account')
+                        ).first()
+                        
+                        if existing_transaction:
+                            logger.info(f"Skipping duplicate transaction: {description_part} - {trans_data.get('amount')} on {trans_data.get('date')}")
+                            skipped_duplicates += 1
+                            continue
+                            
                         Transaction.objects.create(**trans_data)
                         created_count += 1
+                        
                     except Exception as e:
                         logger.error(f"Error creating individual transaction: {str(e)}")
                         # Continue with other transactions
                         continue
 
+            if skipped_duplicates > 0:
+                logger.info(f"Skipped {skipped_duplicates} duplicate transactions during bulk import")
+                
             return created_count
+            
         except Exception as e:
             logger.error(f"Error in transaction batch creation: {str(e)}")
             return created_count
@@ -786,17 +836,55 @@ class TransactionImportService:
         return fallback_date
 
     def _parse_pdf_transactions(self, pdf_text: str, statement_date: str = None) -> List[Dict]:
-        """Extract transaction data from PDF text - MULTI-BANK SUPPORT (Federal, SBI, HDFC)."""
+        """Extract transaction data from PDF text - NEW MODULAR BANK ANALYZER SYSTEM."""
+        logger.info(f"=== MODULAR BANK ANALYZER PARSING STARTED ===")
+        logger.info(f"Statement date: {statement_date}")
+        logger.info(f"Processing {len(pdf_text)} characters from PDF")
+
+        # Try new modular analyzer system first
+        if MODULAR_ANALYZERS_AVAILABLE:
+            try:
+                analyzer = BankAnalyzerFactory.get_analyzer(pdf_text)
+                if analyzer:
+                    logger.info(f"Using modular analyzer: {analyzer.bank_name}")
+                    transactions = analyzer.parse_transactions(pdf_text)
+                    logger.info(f"Modular analyzer found {len(transactions)} transactions")
+                    
+                    # Convert to expected format and add classifications
+                    processed_transactions = []
+                    for txn in transactions:
+                        # Ensure proper classification
+                        final_type = analyzer.classify_transaction(
+                            txn['description'], 
+                            txn['amount'], 
+                            txn
+                        )
+                        
+                        processed_transactions.append({
+                            'date': txn['date'],
+                            'description': txn['description'],
+                            'amount': abs(txn['amount']),  # Always positive
+                            'type': final_type,
+                            'balance': txn.get('balance'),
+                            'bank': txn.get('bank', 'Unknown'),
+                            'raw_line': txn.get('raw_line', '')
+                        })
+                    
+                    return processed_transactions
+                else:
+                    logger.warning("No modular analyzer found, falling back to legacy system")
+            except Exception as e:
+                logger.error(f"Modular analyzer failed: {e}")
+                logger.info("Falling back to legacy parsing system")
+
+        # Fallback to legacy system
         transactions = []
         lines = pdf_text.split('\n')
-
-        logger.info(f"=== MULTI-BANK PDF PARSING STARTED ===")
-        logger.info(f"Statement date: {statement_date}")
-        logger.info(f"Processing {len(lines)} lines from PDF")
+        logger.info(f"Using legacy parser for {len(lines)} lines")
 
         # Detect bank type from PDF content
         bank_type = self._detect_bank_type(pdf_text)
-        logger.info(f"Detected bank type: {bank_type}")
+        logger.info(f"Legacy detected bank type: {bank_type}")
 
         if bank_type == 'FEDERAL':
             return self._parse_federal_bank_transactions(lines, statement_date)
@@ -804,32 +892,94 @@ class TransactionImportService:
             return self._parse_sbi_transactions(lines, statement_date)
         elif bank_type == 'HDFC':
             return self._parse_hdfc_transactions(lines, statement_date)
+        elif bank_type == 'AXIS':
+            return self._parse_axis_transactions(lines, statement_date)
         else:
             logger.warning(f"Unknown bank type, trying generic parsing")
             return self._parse_generic_bank_transactions(lines, statement_date)
 
     def _detect_bank_type(self, pdf_text: str) -> str:
-        """Detect bank type from PDF content."""
+        """Detect bank type from PDF content with improved accuracy."""
         text_lower = pdf_text.lower()
         
-        # Federal Bank indicators
-        if any(indicator in text_lower for indicator in [
-            'federal bank', 'federal towers', 'fdrl', 'fdrlinbb'
-        ]):
-            return 'FEDERAL'
+        # Score-based detection for better accuracy
+        bank_scores = {
+            'FEDERAL': 0,
+            'SBI': 0,
+            'HDFC': 0,
+            'AXIS': 0
+        }
+        
+        # Federal Bank indicators (strong indicators get higher scores)
+        federal_indicators = [
+            ('federal bank limited', 5),
+            ('federal bank', 3),
+            ('federal towers', 4),
+            ('fdrl', 3),
+            ('fdrlinbb', 4)
+        ]
+        
+        for indicator, score in federal_indicators:
+            if indicator in text_lower:
+                bank_scores['FEDERAL'] += score
         
         # SBI indicators
-        if any(indicator in text_lower for indicator in [
-            'state bank of india', 'sbi', 'sbin0'
-        ]) or ('state bank' in text_lower and 'india' in text_lower):
-            return 'SBI'
+        sbi_indicators = [
+            ('state bank of india', 5),
+            ('sbin0020312', 4),  # Specific IFSC from the PDF
+            ('state bank', 3),
+            ('sbi', 2),
+            ('sbin0', 3)
+        ]
         
-        # HDFC indicators  
-        if any(indicator in text_lower for indicator in [
-            'hdfc bank', 'housing development finance', 'hdfc0'
-        ]):
-            return 'HDFC'
-            
+        for indicator, score in sbi_indicators:
+            if indicator in text_lower:
+                bank_scores['SBI'] += score
+        
+        # HDFC indicators
+        hdfc_indicators = [
+            ('hdfc bank limited', 5),
+            ('housing development finance corporation', 5),
+            ('hdfc bank', 4),
+            ('hdfc0', 3)
+        ]
+        
+        for indicator, score in hdfc_indicators:
+            if indicator in text_lower:
+                bank_scores['HDFC'] += score
+        
+        # Axis Bank indicators
+        axis_indicators = [
+            ('axis bank limited', 5),
+            ('axis account no', 4),
+            ('statement of axis account', 5),
+            ('axis bank', 4),
+            ('utib0004080', 4),  # Specific IFSC from the PDF
+            ('utib', 3)
+        ]
+        
+        for indicator, score in axis_indicators:
+            if indicator in text_lower:
+                bank_scores['AXIS'] += score
+        
+        # Additional context-based scoring
+        # Look for account statements patterns
+        if 'statement of axis account' in text_lower:
+            bank_scores['AXIS'] += 10
+        elif 'state bank of india' in text_lower and 'account number' in text_lower:
+            bank_scores['SBI'] += 8
+        elif 'hdfc bank' in text_lower and 'statement' in text_lower:
+            bank_scores['HDFC'] += 8
+        elif 'federal bank' in text_lower and 'statement' in text_lower:
+            bank_scores['FEDERAL'] += 8
+        
+        # Return the bank with highest score (minimum threshold of 3)
+        max_score = max(bank_scores.values())
+        if max_score >= 3:
+            for bank, score in bank_scores.items():
+                if score == max_score:
+                    return bank
+        
         return 'GENERIC'
 
     def _parse_federal_bank_transactions(self, lines: List[str], statement_date: str = None) -> List[Dict]:
@@ -889,137 +1039,104 @@ class TransactionImportService:
         return transactions
 
     def _parse_sbi_transactions(self, lines: List[str], statement_date: str = None) -> List[Dict]:
-        """Parse SBI (State Bank of India) specific format."""
+        """Parse SBI (State Bank of India) specific format - Improved for actual PDF format."""
         transactions = []
         
-        logger.info(f"=== SBI PARSING ===")
+        logger.info(f"=== SBI PARSING (IMPROVED) ===")
         
         for line_num, line in enumerate(lines, 1):
             line = line.strip()
-            if len(line) < 15:  # Reduced from 20 to catch more lines
+            if len(line) < 20:
                 continue
 
-            # Skip SBI header/footer lines - made more specific
+            # Skip SBI header/footer lines
             skip_indicators = [
-                'state bank of india', 'customer name:', 'account number:', 'branch:',
-                'statement of account', 'txn date', 'value date', 'description',
-                'page no', 'currency:', 'available balance:', 'ref/cheque no', 'balance cr'
+                'state bank of india', 'account name', 'account number', 'branch',
+                'ifsc code', 'micr code', 'customer id', 'nominee registered',
+                'date credit balance details', 'ref no./cheque no', 'debit',
+                'drawing power', 'interest rate', 'address', 'cif no', 'ckyc no'
             ]
-            # Note: removed standalone 'debit', 'credit', 'balance' to avoid false positives
             
             if any(skip in line.lower() for skip in skip_indicators):
                 continue
 
             logger.info(f"SBI Line {line_num}: {line}")
 
-            # SBI format: DD-MM-YY DD-MM-YY DESCRIPTION REF_NO DEBIT_AMT CREDIT_AMT BALANCE_AMT CR
-            # Split by multiple spaces to handle tabular format
-            parts = [part.strip() for part in re.split(r'\s{2,}', line) if part.strip()]
+            # SBI actual format from PDF: "100.00 - 01 JUN 2024 TRANSFER TO 4897695162091 -UPI/DR/415388277978/MOHAMMAD/KKBK/mohammadmu/UPI9.13"
+            # Pattern: AMOUNT - DATE DESCRIPTION BALANCE
+            sbi_patterns = [
+                # Pattern 1: Amount - Date Description Balance
+                r'^(\d+\.?\d*)\s*-\s*(\d{2}\s+[A-Z]{3}\s+\d{4})\s+(.+?)\s+([\d,]+\.?\d*)\s*$',
+                # Pattern 2: - Amount Date Description Balance  
+                r'^-\s+(\d+\.?\d*)\s+(\d{2}\s+[A-Z]{3}\s+\d{4})\s+(.+?)\s+([\d,]+\.?\d*)\s*$',
+                # Pattern 3: Date Description Amount Balance
+                r'^(\d{2}\s+[A-Z]{3}\s+\d{4})\s+(.+?)\s+(\d+\.?\d*)\s+([\d,]+\.?\d*)\s*$'
+            ]
             
-            if len(parts) >= 2:  # Reduced from 4 to be more flexible
-                # Check if first part looks like a date (DD-MM-YY)
-                if re.match(r'\d{2}-\d{2}-\d{2}', parts[0]):
+            transaction_found = False
+            
+            for pattern_num, pattern in enumerate(sbi_patterns, 1):
+                match = re.search(pattern, line)
+                if match:
                     try:
-                        transaction_date = self._convert_sbi_date(parts[0])
-                        
-                        # Find all monetary amounts in the line
-                        amounts = re.findall(r'([\d,]+\.\d{2})', line)
-                        
-                        if len(amounts) >= 1:
-                            # Determine if it's a debit or credit transaction
-                            line_upper = line.upper()
+                        if pattern_num == 1:  # Amount - Date Description Balance
+                            transaction_amount = match.group(1)
+                            date_str = self._convert_sbi_date_format2(match.group(2))
+                            description = match.group(3).strip()
+                            balance = match.group(4)
                             
-                            # Look for debit/credit patterns
-                            is_debit = False
-                            is_credit = False
-                            transaction_amount = None
-                            
-                            # Method 1: Look for explicit DR/CR markers
-                            dr_matches = re.findall(r'(\d+\.\d{2})\s*DR', line_upper)
-                            cr_matches = re.findall(r'(\d+\.\d{2})\s*CR', line_upper)
-                            
-                            if dr_matches:
-                                is_debit = True
-                                transaction_amount = dr_matches[0].replace(',', '')
-                            elif cr_matches and len(cr_matches) >= 2:  # First CR is amount, second is balance
-                                is_credit = True  
-                                transaction_amount = cr_matches[0].replace(',', '')
-                            elif len(amounts) >= 2:
-                                # Method 2: Use regex to find amount patterns with dashes
-                                # SBI format: DESCRIPTION REF_NO DEBIT_AMT/- CREDIT_AMT/- BALANCE
+                            # Determine transaction type from description
+                            desc_lower = description.lower()
+                            if 'transfer to' in desc_lower or 'upi/dr' in desc_lower:
+                                trans_type = 'expense'
+                            else:
+                                trans_type = 'income'
                                 
-                                # Look for pattern: amount/dash debit, amount/dash credit, balance
-                                # Improved pattern to handle various spacing
-                                debit_credit_pattern = r'(\d+[\d,]*\.\d{2}|\-)\s+(\d+[\d,]*\.\d{2}|\-)\s+(\d+[\d,]*\.\d{2})'
-                                dc_match = re.search(debit_credit_pattern, line)
-                                
-                                if dc_match:
-                                    debit_part = dc_match.group(1).strip()
-                                    credit_part = dc_match.group(2).strip()
-                                    balance_part = dc_match.group(3).strip()
-                                    
-                                    logger.info(f"    Parsed amounts: Debit={debit_part}, Credit={credit_part}, Balance={balance_part}")
-                                    
-                                    if debit_part != '-' and debit_part.replace(',', '').replace('.', '').isdigit():
-                                        # It's a debit transaction
-                                        is_debit = True
-                                        transaction_amount = debit_part.replace(',', '')
-                                    elif credit_part != '-' and credit_part.replace(',', '').replace('.', '').isdigit():
-                                        # It's a credit transaction  
-                                        is_credit = True
-                                        transaction_amount = credit_part.replace(',', '')
-                                    else:
-                                        # Fallback: use first available amount
-                                        transaction_amount = amounts[0].replace(',', '') if amounts else None
-                                        # Determine type from description
-                                        desc_lower = line.lower()
-                                        if any(term in desc_lower for term in ['withdrawal', 'charges', 'fee', 'debit']):
-                                            is_debit = True
-                                        else:
-                                            is_credit = True
-                                else:
-                                    # Fallback parsing for non-standard format
-                                    transaction_amount = amounts[0].replace(',', '') if amounts else None
-                                    desc_lower = line.lower()
-                                    if any(term in desc_lower for term in ['withdrawal', 'wd', 'charges', 'fee', 'debit']):
-                                        is_debit = True
-                                    else:
-                                        is_credit = True                            # Build description from the middle parts
-                            description_parts = []
-                            for part in parts[2:]:  # Skip date fields
-                                if not re.match(r'^[\d,]+\.\d{2}$', part) and part not in ['DR', 'CR', '-']:
-                                    description_parts.append(part)
+                        elif pattern_num == 2:  # - Amount Date Description Balance
+                            transaction_amount = match.group(1)
+                            date_str = self._convert_sbi_date_format2(match.group(2))
+                            description = match.group(3).strip()
+                            balance = match.group(4)
                             
-                            description = ' '.join(description_parts[:8])  # Limit description
+                            # Credit transaction (income)
+                            trans_type = 'income'
                             
-                            # Clean up description
-                            if not description and len(parts) > 2:
-                                # Extract description from raw line
-                                desc_match = re.search(r'\d{2}-\d{2}-\d{2}\s+\d{2}-\d{2}-\d{2}\s+(.+?)\s+\d+', line)
-                                if desc_match:
-                                    description = desc_match.group(1).strip()
+                        else:  # Pattern 3: Date Description Amount Balance
+                            date_str = self._convert_sbi_date_format2(match.group(1))
+                            description = match.group(2).strip()
+                            transaction_amount = match.group(3)
+                            balance = match.group(4)
                             
-                            if not transaction_amount:
-                                continue
-                            
-                            trans_type = 'expense' if is_debit else 'income'
-                            
+                            # Determine type from description
+                            desc_lower = description.lower()
+                            if any(term in desc_lower for term in ['transfer to', 'upi/dr', 'withdrawal', 'debit']):
+                                trans_type = 'expense'
+                            else:
+                                trans_type = 'income'
+                        
+                        # Clean amount
+                        transaction_amount = transaction_amount.replace(',', '')
+                        
+                        if float(transaction_amount) > 0:
                             logger.info(f"*** SBI TRANSACTION FOUND ON LINE {line_num} ***")
-                            logger.info(f"  Date: {transaction_date}")
+                            logger.info(f"  Date: {date_str}")
                             logger.info(f"  Description: {description}")
                             logger.info(f"  Amount: {transaction_amount}")
                             logger.info(f"  Type: {trans_type}")
                             
                             transactions.append({
-                                'date_str': transaction_date,
+                                'date_str': date_str,
                                 'description': description,
                                 'amount_str': transaction_amount,
                                 'type': trans_type,
                                 'source_line': line,
-                                'pattern_used': 1,
+                                'pattern_used': pattern_num,
                                 'bank_type': 'SBI'
                             })
-                        
+                            
+                            transaction_found = True
+                            break
+                            
                     except Exception as e:
                         logger.error(f"Error parsing SBI transaction on line {line_num}: {str(e)}")
                         continue
@@ -1028,97 +1145,171 @@ class TransactionImportService:
         return transactions
 
     def _parse_hdfc_transactions(self, lines: List[str], statement_date: str = None) -> List[Dict]:
-        """Parse HDFC Bank specific format."""
+        """Parse HDFC Bank specific format with enhanced multi-line and comprehensive pattern matching."""
         transactions = []
         
         logger.info(f"=== HDFC PARSING ===")
         
-        for line_num, line in enumerate(lines, 1):
-            line = line.strip()
-            if len(line) < 15:
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            line_num = i + 1
+            
+            if len(line) < 8:
+                i += 1
                 continue
 
-            # Skip HDFC header/footer lines
+            # Skip HDFC header/footer lines - made more specific to avoid false positives
             skip_indicators = [
                 'hdfc bank', 'housing development finance', 'statement of account',
                 'account number:', 'branch:', 'customer name:', 'ifsc code:',
-                'opening balance', 'closing balance', 'page no', 'date', 'description',
-                'cheque no', 'debit', 'credit', 'balance'
+                'opening balance', 'closing balance', 'generated on:',
+                'cheque no', 'ref no', 'value dt', 'withdrawal amt', 'deposit amt',
+                'this is a computer generated', 'contents of this statement',
+                'mr ', 'joint holders', 'nomination', 'address', 'city', 'state',
+                'phone no', 'email', 'cust id', 'account status', 'rtgs/neft ifsc'
             ]
             
+            # Additional specific checks to avoid filtering valid transactions
+            # Skip lines that are ONLY page numbers or headers
+            if (line.lower().startswith('page no') or 
+                line.lower() == 'page no' or
+                re.match(r'^\s*page\s+no\s*[:.]?\s*\d+\s*$', line, re.IGNORECASE)):
+                i += 1
+                continue
+            
             if any(skip in line.lower() for skip in skip_indicators):
+                i += 1
                 continue
 
             logger.info(f"HDFC Line {line_num}: {line}")
 
-            # HDFC format patterns - multiple variations
-            # Pattern 1: DD/MM/YY DD/MM/YY Description Amount Dr/Cr Balance
-            # Pattern 2: DD-MM-YYYY Description Ref_No Debit Credit Balance
-            
-            # Try different HDFC patterns
+            # Enhanced HDFC patterns for comprehensive transaction capture
             hdfc_patterns = [
-                # Pattern 1: Date-based with DD/MM/YY format
-                r'^(\d{2}/\d{2}/\d{2})\s+\d{2}/\d{2}/\d{2}\s+(.+?)\s+([\d,]+\.\d{2})\s+(Dr|Cr)\s+([\d,]+\.\d{2}).*$',
-                # Pattern 2: Date-based with DD-MM-YYYY format  
-                r'^(\d{2}-\d{2}-\d{4})\s+(.+?)\s+(\d+)\s*([\d,]*\.?\d*)\s*([\d,]*\.?\d*)\s*([\d,]+\.\d{2}).*$',
-                # Pattern 3: Simple date + description + amount
-                r'^(\d{2}/\d{2}/\d{4})\s+(.+?)\s+([\d,]+\.\d{2})\s*(Dr|Cr|DR|CR)?\s*([\d,]+\.\d{2})?.*$'
+                # Pattern 1: Full HDFC format - DD/MM/YY Description RefNo DD/MM/YY Amount Balance
+                r'^(\d{2}/\d{2}/\d{2})\s+(.+?)\s+(\d{10,})\s+\d{2}/\d{2}/\d{2}\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$',
+                # Pattern 2: DD/MM/YYYY format with 4-digit year 
+                r'^(\d{2}/\d{2}/\d{4})\s+(.+?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$',
+                # Pattern 3: DD/MM/YY simple format with two amounts (transaction amount and balance)
+                r'^(\d{2}/\d{2}/\d{2})\s+(.+?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$',
+                # Pattern 4: With reference number between description and amounts
+                r'^(\d{2}/\d{2}/\d{2})\s+(.+?)\s+(\d{8,})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$',
+                # Pattern 5: HDFC format with description, ref number, negative amount, balance 
+                r'^(\d{2}/\d{2}/\d{2,4})\s+(.+?)\s+(\d{8,})\s+(-?[\d,]+\.\d{2})\s+([\d,]+\.\d{2})$',
+                # Pattern 6: UPI/ATM/POS specific pattern with negative amounts
+                r'^(\d{2}/\d{2}/\d{2,4})\s+(UPI-|ATM|ATW|POS).+?\s+(\d{8,})\s+(-?[\d,]+\.\d{2})\s+([\d,]+\.\d{2})$',
+                # Pattern 7: Date + Description + single negative amount + balance (common HDFC format)
+                r'^(\d{2}/\d{2}/\d{2,4})\s+(.+?)\s+(-?[\d,]+\.\d{2})\s+([\d,]+\.\d{2})$',
+                # Pattern 8: ATM/EAW transactions with specific format (captures missing June 27th transaction)
+                r'^(\d{2}/\d{2}/\d{2,4})\s+(EAW-|ATW-|ATM-)(.+?)\s+(\d{8,})\s+\d{2}/\d{2}/\d{2,4}\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})',
+                # Pattern 9: Flexible date at start - capture everything and parse amounts
+                r'^(\d{2}/\d{2}/\d{2,4})\s+(.+)$'
             ]
             
             transaction_found = False
             
+            # Try to match current line with patterns
             for pattern_num, pattern in enumerate(hdfc_patterns, 1):
                 match = re.search(pattern, line, re.IGNORECASE)
                 if match:
                     try:
-                        if pattern_num == 1:  # DD/MM/YY Dr/Cr format
-                            date_str = self._convert_hdfc_date(match.group(1))
+                        raw_date = match.group(1)
+                        date_str = self._convert_hdfc_date(raw_date)
+                        
+                        if not date_str or date_str == raw_date:
+                            logger.warning(f"HDFC date conversion failed for '{raw_date}', skipping")
+                            continue
+                        
+                        # Handle different pattern structures
+                        if pattern_num in [1]:  # Full format with reference number (Date Desc RefNo Date Amount Balance)
                             description = match.group(2).strip()
-                            amount_str = match.group(3)
-                            dr_cr = match.group(4).upper()
-                            balance_str = match.group(5) if len(match.groups()) >= 5 else None
-                            
-                            trans_type = 'expense' if dr_cr in ['DR', 'DEBIT'] else 'income'
-                            
-                        elif pattern_num == 2:  # DD-MM-YYYY with debit/credit columns
-                            date_str = self._normalize_date(match.group(1))
+                            amount_str = match.group(4).replace(',', '').replace('-', '')
+                            balance_str = match.group(5)
+                                
+                        elif pattern_num in [2, 3]:  # Simple format DD/MM/YYYY or DD/MM/YY (Date Desc Amount Balance)
                             description = match.group(2).strip()
-                            debit_amt = match.group(4) if match.group(4) and match.group(4).strip() else None
-                            credit_amt = match.group(5) if match.group(5) and match.group(5).strip() else None
+                            amount_str = match.group(3).replace(',', '').replace('-', '')
+                            balance_str = match.group(4)
                             
-                            if debit_amt and debit_amt != '-':
-                                trans_type = 'expense'
-                                amount_str = debit_amt.replace(',', '')
-                            elif credit_amt and credit_amt != '-':
-                                trans_type = 'income'
-                                amount_str = credit_amt.replace(',', '')
+                        elif pattern_num in [4]:  # With reference number (Date Desc RefNo Amount Balance)
+                            description = match.group(2).strip()
+                            # Remove reference number from description
+                            description = re.sub(r'\d{8,}', '', description).strip()
+                            amount_str = match.group(4).replace(',', '').replace('-', '')
+                            balance_str = match.group(5)
+                            
+                        elif pattern_num in [5, 6]:  # HDFC with ref number and negative amounts (Date Desc RefNo -Amount Balance)
+                            description = match.group(2).strip()
+                            # Remove reference number from description if it exists
+                            description = re.sub(r'\d{8,}', '', description).strip()
+                            amount_str = match.group(4).replace(',', '').replace('-', '')
+                            balance_str = match.group(5)
+                            
+                        elif pattern_num == 7:  # Date + Description + negative amount + balance (Date Desc -Amount Balance)
+                            description = match.group(2).strip()
+                            amount_str = match.group(3).replace(',', '').replace('-', '')
+                            balance_str = match.group(4)
+                            
+                        elif pattern_num == 8:  # ATM/EAW transactions (Date EAW-/ATW-/ATM- Desc RefNo Date Amount Balance)
+                            prefix = match.group(2).strip()  # EAW-, ATW-, ATM-
+                            description = prefix + match.group(3).strip()
+                            # Remove reference number from description if it exists
+                            description = re.sub(r'\d{8,}', '', description).strip()
+                            amount_str = match.group(5).replace(',', '').replace('-', '')
+                            balance_str = match.group(6)
+                            
+                        elif pattern_num == 9:  # Flexible - extract amounts from line
+                            full_content = match.group(2).strip()
+                            amounts = re.findall(r'(-?[\d,]+\.\d{2})', full_content)
+                            
+                            if len(amounts) >= 1:
+                                # Build description by removing amounts
+                                description = full_content
+                                for amt in amounts:
+                                    description = description.replace(amt, ' ')
+                                description = re.sub(r'\d{8,}', '', description)  # Remove ref numbers
+                                description = re.sub(r'\s+', ' ', description).strip()
+                                
+                                # If we have multiple amounts, first is usually transaction amount, last is balance
+                                if len(amounts) >= 2:
+                                    # Find the transaction amount (look for negative or smaller positive amount)
+                                    trans_amounts = [amt for amt in amounts if '-' in amt or float(amt.replace(',', '').replace('-', '')) < 50000]
+                                    if trans_amounts:
+                                        amount_str = trans_amounts[0].replace(',', '').replace('-', '')
+                                    else:
+                                        amount_str = amounts[0].replace(',', '').replace('-', '')
+                                    balance_str = amounts[-1]  # Last amount is usually balance
+                                else:
+                                    amount_str = amounts[0].replace(',', '').replace('-', '')
+                                    balance_str = None
                             else:
                                 continue
-                                
-                        else:  # Pattern 3: Simple format
-                            date_str = self._normalize_date(match.group(1))
-                            description = match.group(2).strip()
-                            amount_str = match.group(3)
-                            dr_cr = match.group(4).upper() if match.group(4) else None
-                            
-                            # Determine type from description if no Dr/Cr indicator
-                            if dr_cr in ['DR', 'DEBIT']:
-                                trans_type = 'expense'
-                            elif dr_cr in ['CR', 'CREDIT']:
-                                trans_type = 'income'
-                            else:
-                                # Use description keywords to determine type
-                                desc_lower = description.lower()
-                                if any(term in desc_lower for term in ['withdrawal', 'atm', 'purchase', 'payment', 'debit', 'fee', 'charge']):
-                                    trans_type = 'expense'
-                                else:
-                                    trans_type = 'income'
                         
-                        # Clean amount string
+                        # Clean and validate description
+                        description = re.sub(r'\s+', ' ', description).strip()
+                        if not description or len(description) < 3:
+                            description = 'HDFC Transaction'
+                        
+                        # **ENHANCED HDFC COLUMN-BASED CLASSIFICATION**
+                        # HDFC Format: Date | Narration | Chq./Ref.No. | Value Dt | Withdrawal Amt. | Deposit Amt. | Closing Balance
+                        # Key insight: The column position determines the transaction type!
+                        
+                        desc_lower = description.lower()
+                        line_lower = line.lower()
+                        
+                        # Parse all amounts from the line to understand column structure
+                        all_amounts = re.findall(r'([\d,]+\.\d{2})', line)
+                        
+                        # Determine transaction type based on HDFC column analysis and context
+                        trans_type = self._determine_hdfc_transaction_type_by_columns(
+                            description, amount_str, balance_str, all_amounts, line
+                        )
+                        
+                        # Validate amount
                         amount_str = amount_str.replace(',', '') if amount_str else '0'
                         
                         if float(amount_str) > 0:
-                            logger.info(f"*** HDFC TRANSACTION FOUND ON LINE {line_num} ***")
+                            logger.info(f"*** HDFC TRANSACTION FOUND ON LINE {line_num} (Pattern {pattern_num}) ***")
                             logger.info(f"  Date: {date_str}")
                             logger.info(f"  Description: {description}")
                             logger.info(f"  Amount: {amount_str}")
@@ -1141,27 +1332,219 @@ class TransactionImportService:
                         logger.error(f"Error parsing HDFC transaction on line {line_num}: {str(e)}")
                         continue
             
+            # Enhanced fallback parsing - catch any missed transactions
             if not transaction_found:
-                # Try generic parsing as fallback for HDFC
+                # Look for any line with date pattern and amounts
+                date_match = re.search(r'(\d{2}/\d{2}/\d{2,4})', line)
                 amounts = re.findall(r'([\d,]+\.\d{2})', line)
-                if len(amounts) >= 1 and re.search(r'\d{2}[/-]\d{2}[/-]\d{2,4}', line):
-                    # Has date pattern and amounts, try to parse generically
-                    date_match = re.search(r'(\d{2}[/-]\d{2}[/-]\d{2,4})', line)
-                    if date_match:
-                        try:
-                            date_str = self._normalize_date(date_match.group(1))
-                            # Extract description (text before first amount)
-                            desc_match = re.search(r'^.*?(\d{2}[/-]\d{2}[/-]\d{2,4})\s+(.+?)\s+[\d,]+\.\d{2}', line)
-                            description = desc_match.group(2).strip() if desc_match else 'HDFC Transaction'
+                
+                if date_match and len(amounts) >= 1:
+                    try:
+                        raw_date = date_match.group(1)
+                        date_str = self._convert_hdfc_date(raw_date)
+                        
+                        if date_str and date_str != raw_date:
+                            # Extract description by removing date and amounts
+                            description = line
+                            description = re.sub(r'\d{2}/\d{2}/\d{2,4}', '', description)
+                            for amt in amounts:
+                                description = description.replace(amt, ' ')
+                            description = re.sub(r'\d{8,}', '', description)  # Remove reference numbers
+                            description = re.sub(r'\s+', ' ', description).strip()
+                            
+                            if not description or len(description) < 3:
+                                description = 'HDFC Transaction'
+                            
                             amount_str = amounts[0].replace(',', '')
                             
-                            # Determine type from keywords
-                            desc_lower = line.lower()
-                            trans_type = 'expense' if any(term in desc_lower for term in [
-                                'debit', 'dr', 'withdrawal', 'atm', 'purchase', 'payment', 'fee', 'charge'
-                            ]) else 'income'
+                            # Use the same column-based classification for fallback transactions
+                            trans_type = self._determine_hdfc_transaction_type_by_columns(
+                                description, amount_str, amounts[-1] if len(amounts) > 1 else None, amounts, line
+                            )
                             
-                            logger.info(f"*** HDFC GENERIC TRANSACTION ON LINE {line_num} ***")
+                            if float(amount_str) > 0:
+                                logger.info(f"*** HDFC FALLBACK TRANSACTION ON LINE {line_num} ***")
+                                logger.info(f"  Date: {date_str}")
+                                logger.info(f"  Description: {description}")
+                                logger.info(f"  Amount: {amount_str}")
+                                logger.info(f"  Type: {trans_type}")
+                                
+                                transactions.append({
+                                    'date_str': date_str,
+                                    'description': description,
+                                    'amount_str': amount_str,
+                                    'type': trans_type,
+                                    'source_line': line,
+                                    'pattern_used': 'fallback',
+                                    'bank_type': 'HDFC'
+                                })
+                            
+                    except Exception as e:
+                        logger.error(f"Error in HDFC fallback parsing on line {line_num}: {str(e)}")
+            
+            i += 1
+
+        logger.info(f"=== FOUND {len(transactions)} HDFC TRANSACTIONS ===")
+        return transactions
+
+    def _determine_hdfc_transaction_type_by_columns(self, description: str, amount_str: str, balance_str: str, all_amounts: list, full_line: str) -> str:
+        """
+        Determine HDFC transaction type using column-based analysis
+        
+        HDFC Format: Date | Narration | Chq./Ref.No. | Value Dt | Withdrawal Amt. | Deposit Amt. | Closing Balance
+        
+        Key Logic:
+        - Withdrawal Amt. column = expense (money going out)
+        - Deposit Amt. column = income (money coming in) 
+        - ALL UPI- transactions are outgoing payments (expenses) regardless of recipient
+        """
+        
+        desc_lower = description.lower()
+        line_lower = full_line.lower()
+        
+        # **CRITICAL UPI RULE**: ALL UPI- transactions are expenses (outgoing payments)
+        # This overrides all other logic because UPI- prefix indicates money leaving account
+        if desc_lower.startswith('upi-'):
+            return 'expense'
+        
+        # Strong income indicators (override column analysis)
+        strong_income_indicators = [
+            'interest paid', 'salary', 'wage', 'dividend', 'bonus', 'refund',
+            'cashback', 'commission', 'reversal', 'credit interest'
+        ]
+        
+        if any(indicator in desc_lower for indicator in strong_income_indicators):
+            return 'income'
+        
+        # Company payment detection (legitimate income sources)
+        company_patterns = [
+            r'\b(software|tech|technologies|solutions|systems|consulting|services)\s+(p\s*l|pvt\s*ltd)',
+            r'\b[a-z0-9]+\s*(software|tech|solutions|systems|services)\b',
+            r'\b(microsoft|google|amazon|apple|oracle|sap)\b(?!.*\b(recharge|payment|purchase)\b)'
+        ]
+        
+        for pattern in company_patterns:
+            if re.search(pattern, desc_lower):
+                return 'income'
+        
+        # Strong expense indicators
+        strong_expense_indicators = [
+            'atw-', 'atm-', 'eaw-', 'pos ', 'nwd-', 'withdrawal', 'purchase',
+            'bill payment', 'recharge', 'fee', 'charge', 'emi', 'loan'
+        ]
+        
+        if any(indicator in desc_lower for indicator in strong_expense_indicators):
+            return 'expense'
+        
+        # Merchant/Service payments (always expense)
+        merchant_patterns = [
+            r'\b(zomato|swiggy|uber|ola|rapido|amazon|flipkart|myntra|nykaa)\b',
+            r'\b(airtel|jio|vodafone)\b.*\brecharge\b',
+            r'\bgoogle.*\brecharge\b'
+        ]
+        
+        for pattern in merchant_patterns:
+            if re.search(pattern, desc_lower):
+                return 'expense'
+        
+        # Column-based analysis using balance change
+        try:
+            transaction_amount = float(amount_str.replace(',', ''))
+            
+            if balance_str:
+                closing_balance = float(balance_str.replace(',', ''))
+                
+                # Large amounts analysis
+                if transaction_amount >= 5000:
+                    # Large amounts are typically income unless clearly expense
+                    if any(term in desc_lower for term in ['payment', 'purchase', 'bill']):
+                        return 'expense'
+                    else:
+                        return 'income'
+                
+                # Medium amounts (1000-5000)
+                elif transaction_amount >= 1000:
+                    # Context-based decision
+                    if any(term in desc_lower for term in ['store', 'mart', 'shop', 'restaurant']):
+                        return 'expense'
+                    else:
+                        return 'income'  # Could be person-to-person payment received
+                
+                # Small amounts (< 1000) - usually expenses
+                else:
+                    return 'expense'
+                    
+        except (ValueError, TypeError):
+            pass
+        
+        # Default fallback based on amount size
+        try:
+            amount_val = float(amount_str.replace(',', ''))
+            return 'income' if amount_val >= 2000 else 'expense'
+        except:
+            return 'expense'
+
+    def _parse_axis_transactions(self, lines: List[str], statement_date: str = None) -> List[Dict]:
+        """Parse AXIS Bank specific format."""
+        transactions = []
+        
+        logger.info(f"=== AXIS PARSING ===")
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
+            line_num = i + 1
+            
+            if len(line) < 8:
+                continue
+
+            # Skip AXIS header/footer lines
+            skip_indicators = [
+                'axis bank', 'prakhya venkata', 'joint holder', 'customer id',
+                'ifsc code', 'micr code', 'nominee', 'scheme', 'tran date',
+                'particulars', 'debit', 'credit', 'balance', 'legends',
+                'transaction total', 'registered office', 'this is a system'
+            ]
+            
+            if any(skip in line.lower() for skip in skip_indicators):
+                continue
+
+            logger.info(f"AXIS Line {line_num}: {line}")
+
+            # AXIS patterns
+            axis_patterns = [
+                # Pattern 1: DD-MM-YYYY Description Amount Balance Init
+                r'^(\d{2}-\d{2}-\d{4})(.+?)\s+([\d,]+\.00)\s+([\d,]+\.00)\s+\d+$',
+                # Pattern 2: UPI/IMPS/RTGS transactions
+                r'^(\d{2}-\d{2}-\d{4})(UPI|IMPS|RTGS).+?\s+([\d,]+\.00)\s+([\d,]+\.00)\s+\d+$',
+                # Pattern 3: ATM transactions
+                r'^(\d{2}-\d{2}-\d{4})(ATM-CASH).+?\s+([\d,]+\.00)\s+([\d,]+\.00)\s+\d+$'
+            ]
+            
+            transaction_found = False
+            
+            for pattern_num, pattern in enumerate(axis_patterns, 1):
+                match = re.search(pattern, line, re.IGNORECASE)
+                if match:
+                    try:
+                        raw_date = match.group(1)
+                        date_str = self._convert_axis_date(raw_date)
+                        
+                        if not date_str:
+                            continue
+                        
+                        description = match.group(2).strip()
+                        amount_str = match.group(3).replace(',', '')
+                        balance_str = match.group(4)
+                        
+                        # Determine transaction type
+                        desc_lower = description.lower()
+                        if any(term in desc_lower for term in ['credit', 'deposit', 'received']):
+                            trans_type = 'income'
+                        else:
+                            trans_type = 'expense'
+                        
+                        if float(amount_str) > 0:
+                            logger.info(f"*** AXIS TRANSACTION FOUND ON LINE {line_num} (Pattern {pattern_num}) ***")
                             logger.info(f"  Date: {date_str}")
                             logger.info(f"  Description: {description}")
                             logger.info(f"  Amount: {amount_str}")
@@ -1173,16 +1556,136 @@ class TransactionImportService:
                                 'amount_str': amount_str,
                                 'type': trans_type,
                                 'source_line': line,
-                                'pattern_used': 'generic',
-                                'bank_type': 'HDFC'
+                                'pattern_used': pattern_num,
+                                'bank_type': 'AXIS'
                             })
                             
-                        except Exception as e:
-                            logger.error(f"Error in HDFC generic parsing on line {line_num}: {str(e)}")
-                            continue
-
-        logger.info(f"=== FOUND {len(transactions)} HDFC TRANSACTIONS ===")
+                            transaction_found = True
+                            break
+                            
+                    except Exception as e:
+                        logger.error(f"Error parsing AXIS transaction on line {line_num}: {str(e)}")
+                        continue
+        
+        logger.info(f"=== FOUND {len(transactions)} AXIS TRANSACTIONS ===")
         return transactions
+
+    def _parse_federal_transactions(self, lines: List[str], statement_date: str = None) -> List[Dict]:
+        """Parse Federal Bank specific format."""
+        transactions = []
+        
+        logger.info(f"=== FEDERAL PARSING ===")
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
+            line_num = i + 1
+            
+            if len(line) < 8:
+                continue
+
+            # Skip Federal header/footer lines
+            skip_indicators = [
+                'federal bank', 'corporate office', 'prakhya venkata', 'branch name',
+                'customer id', 'swift code', 'currency', 'date value date',
+                'particulars', 'withdrawals', 'deposits', 'balance',
+                'abbreviations used', 'grand total'
+            ]
+            
+            if any(skip in line.lower() for skip in skip_indicators):
+                continue
+
+            logger.info(f"FEDERAL Line {line_num}: {line}")
+
+            # Federal patterns
+            federal_patterns = [
+                # Pattern 1: DD-MMM-YYYY DD-MMM-YYYY Description TFR SXXXXXXXX Amount Balance Cr/Dr
+                r'^(\d{2}-[A-Z]{3}-\d{4})\s+(\d{2}-[A-Z]{3}-\d{4})\s+(.+?)TFR\s+S\d+\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+(Cr|Dr)$',
+                # Pattern 2: UPI transactions
+                r'^(\d{2}-[A-Z]{3}-\d{4})\s+(\d{2}-[A-Z]{3}-\d{4})\s+(UPI\s+IN|UPI\s*OUT).+?TFR\s+S\d+\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+(Cr|Dr)$'
+            ]
+            
+            transaction_found = False
+            
+            for pattern_num, pattern in enumerate(federal_patterns, 1):
+                match = re.search(pattern, line, re.IGNORECASE)
+                if match:
+                    try:
+                        raw_date = match.group(1)
+                        date_str = self._convert_federal_date(raw_date)
+                        
+                        if not date_str:
+                            continue
+                        
+                        if pattern_num == 1:
+                            description = match.group(3).strip()
+                            amount_str = match.group(4).replace(',', '')
+                            balance_str = match.group(5)
+                            cr_dr = match.group(6)
+                        else:
+                            description = match.group(3).strip()
+                            amount_str = match.group(4).replace(',', '')
+                            balance_str = match.group(5)
+                            cr_dr = match.group(6)
+                        
+                        # Determine transaction type based on Cr/Dr
+                        trans_type = 'income' if cr_dr.lower() == 'cr' else 'expense'
+                        
+                        if float(amount_str) > 0:
+                            logger.info(f"*** FEDERAL TRANSACTION FOUND ON LINE {line_num} (Pattern {pattern_num}) ***")
+                            logger.info(f"  Date: {date_str}")
+                            logger.info(f"  Description: {description}")
+                            logger.info(f"  Amount: {amount_str}")
+                            logger.info(f"  Type: {trans_type}")
+                            
+                            transactions.append({
+                                'date_str': date_str,
+                                'description': description,
+                                'amount_str': amount_str,
+                                'type': trans_type,
+                                'source_line': line,
+                                'pattern_used': pattern_num,
+                                'bank_type': 'FEDERAL'
+                            })
+                            
+                            transaction_found = True
+                            break
+                            
+                    except Exception as e:
+                        logger.error(f"Error parsing FEDERAL transaction on line {line_num}: {str(e)}")
+                        continue
+        
+        logger.info(f"=== FOUND {len(transactions)} FEDERAL TRANSACTIONS ===")
+        return transactions
+
+    def _convert_axis_date(self, date_str: str) -> str:
+        """Convert AXIS date format DD-MM-YYYY to YYYY-MM-DD."""
+        try:
+            parts = date_str.split('-')
+            if len(parts) == 3:
+                day, month, year = parts
+                return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+            return None
+        except:
+            return None
+
+    def _convert_federal_date(self, date_str: str) -> str:
+        """Convert Federal date format DD-MMM-YYYY to YYYY-MM-DD."""
+        try:
+            month_map = {
+                'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04',
+                'MAY': '05', 'JUN': '06', 'JUL': '07', 'AUG': '08',
+                'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
+            }
+            
+            parts = date_str.split('-')
+            if len(parts) == 3:
+                day, month_abbr, year = parts
+                month = month_map.get(month_abbr.upper())
+                if month:
+                    return f"{year}-{month}-{day.zfill(2)}"
+            return None
+        except:
+            return None
 
     def _parse_generic_bank_transactions(self, lines: List[str], statement_date: str = None) -> List[Dict]:
         """Generic bank statement parsing for unknown formats."""
@@ -1264,24 +1767,282 @@ class TransactionImportService:
             return federal_date
 
     def _convert_sbi_date(self, date_str: str) -> str:
-        """Convert SBI date format (DD-MM-YY) to DD/MM/YYYY."""
+        """Convert SBI date formats to DD/MM/YYYY."""
         try:
-            # SBI format: "01-08-23"
-            date_obj = datetime.strptime(date_str, '%d-%m-%y')
-            return date_obj.strftime('%d/%m/%Y')
+            # Try SBI format: "01-08-23" (DD-MM-YY)
+            if re.match(r'\d{2}-\d{2}-\d{2}', date_str):
+                date_obj = datetime.strptime(date_str, '%d-%m-%y')
+                return date_obj.strftime('%d/%m/%Y')
+            
+            # Try SBI format: "01 Aug 2023" (DD MMM YYYY)
+            elif re.match(r'\d{1,2} [A-Za-z]{3} \d{4}', date_str):
+                date_obj = datetime.strptime(date_str, '%d %b %Y')
+                return date_obj.strftime('%d/%m/%Y')
+            
+            # Try SBI format: "01 JUN 2024" (DD MMM YYYY uppercase)
+            elif re.match(r'\d{1,2} [A-Z]{3} \d{4}', date_str):
+                date_obj = datetime.strptime(date_str, '%d %B %Y')
+                return date_obj.strftime('%d/%m/%Y')
+                
+            else:
+                # Fallback to original logic
+                date_obj = datetime.strptime(date_str, '%d-%m-%y')
+                return date_obj.strftime('%d/%m/%Y')
+                
         except ValueError as e:
             logger.error(f"Error converting SBI date '{date_str}': {e}")
             return date_str
 
-    def _convert_hdfc_date(self, date_str: str) -> str:
-        """Convert HDFC date format (DD/MM/YY) to DD/MM/YYYY."""
+    def _convert_sbi_date_format2(self, date_str: str) -> str:
+        """Convert SBI date format (DD MMM YYYY) to YYYY-MM-DD with enhanced error handling."""
+        if not date_str:
+            logger.warning("Empty date string provided to SBI date converter")
+            return None
+            
+        date_str = date_str.strip()
+        
         try:
-            # HDFC format: "01/08/23" 
-            date_obj = datetime.strptime(date_str, '%d/%m/%y')
-            return date_obj.strftime('%d/%m/%Y')
+            # SBI format from PDF: "01 JUN 2024"
+            dt_obj = datetime.strptime(date_str, '%d %b %Y')
+            formatted_date = dt_obj.strftime('%Y-%m-%d')
+            logger.debug(f"SBI date conversion: '{date_str}' -> '{formatted_date}'")
+            return formatted_date
         except ValueError as e:
-            logger.error(f"Error converting HDFC date '{date_str}': {e}")
-            return date_str
+            logger.error(f"Error converting SBI date format2 '{date_str}': {e}")
+            # Try alternative SBI formats
+            try:
+                # Try DD-MMM-YYYY format
+                dt_obj = datetime.strptime(date_str, '%d-%b-%Y')
+                return dt_obj.strftime('%Y-%m-%d')
+            except ValueError:
+                logger.error(f"Could not parse SBI date in any known format: '{date_str}'")
+                return date_str
+
+    def _convert_hdfc_date(self, date_str: str) -> str:
+        """Convert HDFC date format to YYYY-MM-DD with enhanced format handling."""
+        if not date_str:
+            logger.warning("Empty date string provided to HDFC date converter")
+            return None
+            
+        date_str = date_str.strip()
+        logger.debug(f"Converting HDFC date: '{date_str}'")
+        
+        try:
+            # Handle DD/MM/YYYY format (like "01/06/2024")
+            if '/' in date_str and len(date_str.split('/')[2]) == 4:
+                dt_obj = datetime.strptime(date_str, "%d/%m/%Y")
+                formatted_date = dt_obj.strftime("%Y-%m-%d")
+                logger.debug(f"HDFC 4-digit year: '{date_str}' -> '{formatted_date}'")
+                return formatted_date
+            
+            # Handle DD/MM/YY format (like "01/06/24") - most common HDFC format
+            elif '/' in date_str and len(date_str.split('/')[2]) == 2:
+                dt_obj = datetime.strptime(date_str, '%d/%m/%y')
+                formatted_date = dt_obj.strftime('%Y-%m-%d')
+                logger.debug(f"HDFC 2-digit year: '{date_str}' -> '{formatted_date}'")
+                return formatted_date
+            
+            # Handle DD-MMM-YYYY format (like "01-JUN-2024") 
+            elif '-' in date_str and len(date_str.split('-')) == 3:
+                dt_obj = datetime.strptime(date_str, "%d-%b-%Y")
+                formatted_date = dt_obj.strftime('%Y-%m-%d')
+                logger.debug(f"HDFC month name format: '{date_str}' -> '{formatted_date}'")
+                return formatted_date
+                
+            # Handle DD MMM YYYY format (like "01 JUN 2024")
+            elif ' ' in date_str and len(date_str.split(' ')) == 3:
+                dt_obj = datetime.strptime(date_str, "%d %b %Y")
+                formatted_date = dt_obj.strftime('%Y-%m-%d')
+                logger.debug(f"HDFC space-separated format: '{date_str}' -> '{formatted_date}'")
+                return formatted_date
+                
+        except ValueError as e:
+            logger.error(f"Error parsing HDFC date '{date_str}': {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error parsing HDFC date '{date_str}': {str(e)}")
+            
+        # If all parsing fails, return None to indicate failure
+        logger.warning(f"Could not parse HDFC date format: '{date_str}', all formats failed")
+        return None
+
+    def _parse_axis_transactions(self, lines: List[str], statement_date: str = None) -> List[Dict]:
+        """Parse Axis Bank specific format."""
+        transactions = []
+        
+        logger.info(f"=== AXIS BANK PARSING ===")
+        
+        for line_num, line in enumerate(lines, 1):
+            line = line.strip()
+            if len(line) < 15:
+                continue
+
+            # Skip Axis Bank header/footer lines
+            skip_indicators = [
+                'axis bank', 'statement of account', 'account number:', 'joint holder', 'customer id',
+                'customer name:', 'branch:', 'ifsc code:', 'micr code:', 'registered mobile',
+                'registered email', 'scheme :', 'ckyc number', 'nominee', 'opening balance',
+                'closing balance', 'statement summary', 'transaction codes', 'end of statement',
+                'request from:', 'this is a system generated', 'please contact the branch'
+            ]
+            
+            if any(skip in line.lower() for skip in skip_indicators):
+                continue
+
+            logger.info(f"Axis Line {line_num}: {line}")
+
+            # Axis Bank format patterns
+            # Format: DD-MM-YYYYDESCRIPTION                          AMOUNT             BALANCE BRANCH
+            axis_patterns = [
+                # Main pattern: DD-MM-YYYY + Description + Amount + Balance + Branch
+                r'^(\d{2}-\d{2}-\d{4})(.+?)\s+(\d[\d,]*\.\d{2})\s+(\d[\d,]*\.\d{2})\s+(\d+)\s*$',
+                
+                # Alternative pattern with debit amount at end
+                r'^(\d{2}-\d{2}-\d{4})(.+?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+\d+\s*$'
+            ]
+            
+            transaction_found = False
+            
+            for pattern_num, pattern in enumerate(axis_patterns, 1):
+                match = re.search(pattern, line, re.IGNORECASE)
+                if match:
+                    try:
+                        # Both patterns have: date, description, amount, balance, branch
+                        date_str = self._convert_axis_date(match.group(1))
+                        description = match.group(2).strip()
+                        amount_str = match.group(3).replace(',', '')
+                        balance = match.group(4)
+                        
+                        # Determine transaction type based on description keywords
+                        trans_type = self._classify_axis_transaction(description)
+                        
+                        if float(amount_str) > 0:
+                            logger.info(f"*** AXIS TRANSACTION FOUND ON LINE {line_num} ***")
+                            logger.info(f"  Date: {date_str}")
+                            logger.info(f"  Description: {description}")
+                            logger.info(f"  Amount: {amount_str}")
+                            logger.info(f"  Type: {trans_type}")
+                            
+                            transactions.append({
+                                'date_str': date_str,
+                                'description': description,
+                                'amount_str': amount_str,
+                                'type': trans_type,
+                                'source_line': line,
+                                'pattern_used': pattern_num,
+                                'bank_type': 'AXIS'
+                            })
+                            
+                            transaction_found = True
+                            break
+                            
+                    except Exception as e:
+                        logger.error(f"Error parsing Axis transaction on line {line_num}: {str(e)}")
+                        continue
+        
+        logger.info(f"=== FOUND {len(transactions)} AXIS TRANSACTIONS ===")
+        return transactions
+
+    def _convert_axis_date(self, axis_date: str) -> str:
+        """Convert Axis Bank date formats to YYYY-MM-DD with enhanced error handling."""
+        if not axis_date:
+            logger.warning("Empty date string provided to Axis date converter")
+            return None
+            
+        axis_date = axis_date.strip()
+        
+        try:
+            # Handle DD-MMM-YY format (01-Aug-23) - case insensitive
+            if re.match(r'\d{1,2}-[A-Za-z]{3}-\d{2}', axis_date):
+                dt_obj = datetime.strptime(axis_date, '%d-%b-%y')
+                formatted_date = dt_obj.strftime('%Y-%m-%d')
+                logger.debug(f"Axis date conversion (DD-MMM-YY): '{axis_date}' -> '{formatted_date}'")
+                return formatted_date
+                
+            # Handle DD/MM/YY format  
+            elif re.match(r'\d{1,2}/\d{1,2}/\d{2}', axis_date):
+                dt_obj = datetime.strptime(axis_date, '%d/%m/%y')
+                formatted_date = dt_obj.strftime('%Y-%m-%d')
+                logger.debug(f"Axis date conversion (DD/MM/YY): '{axis_date}' -> '{formatted_date}'")
+                return formatted_date
+                
+            # Handle DD-MM-YYYY format
+            elif re.match(r'\d{1,2}-\d{1,2}-\d{4}', axis_date):
+                dt_obj = datetime.strptime(axis_date, '%d-%m-%Y')
+                formatted_date = dt_obj.strftime('%Y-%m-%d')
+                logger.debug(f"Axis date conversion (DD-MM-YYYY): '{axis_date}' -> '{formatted_date}'")
+                return formatted_date
+                
+            # Handle DD/MM/YYYY format
+            elif re.match(r'\d{1,2}/\d{1,2}/\d{4}', axis_date):
+                dt_obj = datetime.strptime(axis_date, '%d/%m/%Y')
+                formatted_date = dt_obj.strftime('%Y-%m-%d')
+                logger.debug(f"Axis date conversion (DD/MM/YYYY): '{axis_date}' -> '{formatted_date}'")
+                return formatted_date
+                
+            # Handle DD-MMM-YYYY format (01-Aug-2024)
+            elif re.match(r'\d{1,2}-[A-Za-z]{3}-\d{4}', axis_date):
+                dt_obj = datetime.strptime(axis_date, '%d-%b-%Y')
+                formatted_date = dt_obj.strftime('%Y-%m-%d')
+                logger.debug(f"Axis date conversion (DD-MMM-YYYY): '{axis_date}' -> '{formatted_date}'")
+                return formatted_date
+                
+            # Fallback for unknown formats
+            else:
+                logger.warning(f"Unknown Axis date format: '{axis_date}', attempting flexible parsing")
+                # Try a few more common formats
+                fallback_formats = ['%d %b %Y', '%Y-%m-%d', '%m/%d/%Y']
+                for fmt in fallback_formats:
+                    try:
+                        dt_obj = datetime.strptime(axis_date, fmt)
+                        formatted_date = dt_obj.strftime('%Y-%m-%d')
+                        logger.debug(f"Axis fallback date conversion: '{axis_date}' -> '{formatted_date}'")
+                        return formatted_date
+                    except ValueError:
+                        continue
+                        
+                logger.error(f"Could not parse Axis date in any known format: '{axis_date}'")
+                return axis_date
+                
+        except Exception as e:
+            logger.error(f"Error converting Axis date '{axis_date}': {str(e)}")
+            return axis_date
+
+    def _classify_axis_transaction(self, description: str) -> str:
+        """Classify Axis Bank transaction as income or expense based on description."""
+        desc_lower = description.lower()
+        
+        # Income indicators
+        income_keywords = [
+            'upi/p2a', 'imps/p2a', 'rtgs', 'neft', 'salary', 'interest', 
+            'dividend', 'refund', 'cashback', 'bonus', 'deposit', 
+            'credit', 'received', 'transfer from'
+        ]
+        
+        # Expense indicators
+        expense_keywords = [
+            'upi/p2m', 'atm-cash', 'pos', 'purchase', 'withdrawal', 
+            'debit', 'payment', 'bill', 'emi', 'loan', 'fee', 'charge',
+            'swiggy', 'zomato', 'amazon', 'flipkart', 'google', 'cinema'
+        ]
+        
+        # Check for income patterns first
+        for keyword in income_keywords:
+            if keyword in desc_lower:
+                return 'income'
+                
+        # Check for expense patterns
+        for keyword in expense_keywords:
+            if keyword in desc_lower:
+                return 'expense'
+                
+        # Default classification based on common patterns
+        if any(word in desc_lower for word in ['cash', 'withdrawal', 'purchase']):
+            return 'expense'
+        elif any(word in desc_lower for word in ['deposit', 'credit', 'received']):
+            return 'income'
+            
+        # Default to expense if unclear
+        return 'expense'
 
     def _process_federal_bank_transaction(self, match, current_date: str, current_description: str, 
                                         previous_balance: float, line_num: int) -> Dict:
@@ -1634,16 +2395,38 @@ class TransactionImportService:
         line_lower = line.lower()
         desc_lower = description.lower()
 
-        # Income indicators
+        # **CRITICAL UPI LOGIC**: ALL UPI- transactions in bank statements are outgoing payments (expenses)
+        # Income via UPI would show as "UPI CREDIT" or "RECEIVED FROM" not "UPI-"
+        if desc_lower.startswith('upi-'):
+            return 'expense'  # All UPI- transactions are outgoing payments
+
+        # UPI Credits/Receipts (actual income via UPI)
+        if any(term in desc_lower for term in [
+            'upi credit', 'received from', 'credit from', 'transfer from',
+            'payment received', 'money received'
+        ]):
+            return 'income'
+
+        # Company/Professional income indicators (high priority)
+        company_indicators = [
+            'software', 'solutions', 'services', 'technologies', 'systems',
+            'consulting', 'pvt ltd', 'private limited', 'ltd', 'inc',
+            'corporation', 'corp', 'company', 'co', 'salary', 'wage'
+        ]
+        
+        if any(indicator in desc_lower for indicator in company_indicators):
+            return 'income'
+
+        # Strong income indicators
         income_keywords = [
             'deposit', 'salary', 'wage', 'payment received', 'credit', 'transfer in',
             'interest', 'dividend', 'refund', 'cashback', 'bonus'
         ]
 
-        # Expense indicators
+        # Strong expense indicators
         expense_keywords = [
             'withdrawal', 'purchase', 'payment', 'debit', 'fee', 'charge',
-            'atm', 'transfer out', 'check', 'automatic payment'
+            'atm', 'atw', 'eaw', 'transfer out', 'check', 'automatic payment'
         ]
 
         # Check for explicit debit/credit indicators
