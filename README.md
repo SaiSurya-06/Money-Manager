@@ -1,6 +1,14 @@
 # MoneyManager - Personal Finance Management System
 
-A comprehensive Django-based personal finance management web application with **advanced multi-bank statement parsing**, family group sharing capabilities, and intelligent transaction processing. Built following Django 5.x best practices.
+A clean, production-ready Django-based personal finance management web application with **advanced multi-bank statement parsing**, family group sharing capabilities, and intelligent transaction processing.
+
+## 🎯 **Pure Django Project**
+
+This project has been optimized to contain only Django-related files and production-ready code:
+- ✅ **No test files** - Clean production codebase
+- ✅ **No debug scripts** - Production-ready only
+- ✅ **Organized documentation** - All guides moved to `/docs/` folder
+- ✅ **Clean structure** - Focus on Django application logic
 
 ## 🚀 Latest Features - Multi-Bank Statement Parsing
 
@@ -173,17 +181,23 @@ A comprehensive Django-based personal finance management web application with **
 ## Project Structure
 
 ```
-moneymanager/
+SURYA - Money Manager/
 ├── manage.py                    # Django management script
 ├── requirements.txt             # Python dependencies
 ├── .env.example                # Environment variables template
+├── README.md                   # Project documentation
+├── .gitignore                  # Git ignore rules
 ├── static/                     # Static files (CSS, JS, images)
+├── staticfiles/               # Collected static files
 ├── media/                      # User uploaded files
 ├── templates/                  # HTML templates
 ├── logs/                       # Application logs
-├── moneymanager/              # Main project directory
+├── docs/                       # Documentation and guides
+├── db.sqlite3                 # SQLite database (development)
+├── moneymanager/              # Main Django project
 │   ├── __init__.py
 │   ├── settings/              # Settings modules
+│   │   ├── __init__.py
 │   │   ├── base.py           # Base settings
 │   │   ├── local.py          # Development settings
 │   │   └── production.py     # Production settings
@@ -191,13 +205,14 @@ moneymanager/
 │   ├── wsgi.py              # WSGI configuration
 │   ├── celery.py            # Celery configuration
 │   └── apps/                # Django applications
-│       ├── core/            # Core functionality
-│       ├── accounts/        # User management
+│       ├── core/            # Core functionality & models
+│       ├── accounts/        # User management & authentication
 │       ├── transactions/    # Transaction management
-│       ├── budgets/        # Budget & goals
-│       ├── portfolios/     # Investment tracking
-│       ├── dashboard/      # Dashboard views
+│       ├── budgets/        # Budget & goal management
+│       ├── portfolios/     # Investment & SIP tracking
+│       ├── dashboard/      # Dashboard & analytics
 │       └── imports/        # Data import functionality
+└── venv/                      # Virtual environment (local)
 ```
 
 ## API Documentation
